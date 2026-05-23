@@ -181,13 +181,19 @@ button { border: 0; cursor: pointer; }
   color: #10201d;
   font-weight: 800;
 }
-.form-grid input, .form-grid select {
+.form-grid input, .form-grid select, .form-grid textarea {
   min-height: 42px;
   border-radius: 12px;
   border: 1px solid #dce8e4;
   padding: 0 12px;
   background: #ffffff;
 }
+.form-grid textarea {
+  min-height: 92px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.vault-form .primary { margin-top: 0; }
 
 .page-card h2 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
 .swap-box {

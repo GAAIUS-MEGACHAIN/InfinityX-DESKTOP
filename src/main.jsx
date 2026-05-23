@@ -31,6 +31,7 @@ import {
   Zap
 } from "lucide-react";
 import "./styles.css";
+import { createMnemonic, deriveSolanaAccount, saveVault, validateSeedPhrase } from "./lib/vault.js";
 
 const IFX_MINT = "4s9Bbk3AB223bbqAHhiCcqVg14C6m46ioixJFXMcunm1";
 const SERVICE_FEE_BPS = 15;
@@ -91,6 +92,8 @@ function App() {
   const [dexStatus, setDexStatus] = useState("Ready for live Jupiter quotes");
   const [recoveryStatus, setRecoveryStatus] = useState("Choose a recovery method");
   const [customToken, setCustomToken] = useState({ contract: "", symbol: "", network: "Main" });
+  const [vaultStatus, setVaultStatus] = useState("No encrypted vault created yet");
+  const [generatedPhrase, setGeneratedPhrase] = useState("");
 
   const filteredCoins = useMemo(() => {
     const source = coins.length ? coins : (chainTopTokens[chain.name] ?? topAssets);
@@ -156,7 +159,7 @@ function App() {
     if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} />;
     if (page === "profile") return <ProfilePage setPage={setPage} />;
     if (page === "notifications") return <NotificationsPage />;
-    if (page === "accounts") return <AccountsPage />;
+    if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} />;
     if (page === "services") return <ServicesPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
@@ -268,8 +271,58 @@ function AddTokenPage({ customToken, setCustomToken, chain }) {
   return <section className="page-card"><h2>Add Token</h2><p>{chain.name === "Main" ? "Add any supported token from any connected chain." : `Add ${chain.name} tokens only.`}</p><div className="form-grid"><input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder="Contract, mint, or asset id" /><input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value })} placeholder="Token symbol" /><button className="primary"><Plus size={18} /> Validate and add</button></div></section>;
 }
 
-function AccountsPage() {
-  return <section className="page-card"><h2>Accounts</h2><p>Create multiple accounts with unique icons, colors, wallet ids, and seed vaults.</p><div className="account-list">{["Main", "Trading", "Vault"].map((name, index) => <article key={name}><div className={`mini-avatar c${index}`}>{name[0]}</div><strong>{name}</strong><span>Seed vault required</span></article>)}</div><button className="primary"><Plus size={18} /> Create account</button></section>;
+function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGeneratedPhrase }) {
+  const [password, setPassword] = useState("");
+  const [importPhrase, setImportPhrase] = useState("");
+
+  function generatePhrase() {
+    setGeneratedPhrase(createMnemonic(128));
+    setVaultStatus("12-word seed generated. Store it offline before encrypting.");
+  }
+
+  async function encryptGeneratedVault() {
+    if (!generatedPhrase || password.length < 8) {
+      setVaultStatus("Generate a phrase and use a password with at least 8 characters.");
+      return;
+    }
+    const account = deriveSolanaAccount(generatedPhrase, 0);
+    await saveVault({ kind: "mnemonic", phrase: generatedPhrase, accounts: [account], createdAt: new Date().toISOString() }, password);
+    setVaultStatus(`Encrypted vault saved. First Solana account: ${account.address}`);
+  }
+
+  async function importVault() {
+    const phrase = importPhrase.trim().toLowerCase();
+    if (!validateSeedPhrase(phrase)) {
+      setVaultStatus("Invalid BIP39 seed phrase.");
+      return;
+    }
+    if (password.length < 8) {
+      setVaultStatus("Use a password with at least 8 characters.");
+      return;
+    }
+    const account = deriveSolanaAccount(phrase, 0);
+    await saveVault({ kind: "mnemonic", phrase, accounts: [account], importedAt: new Date().toISOString() }, password);
+    setVaultStatus(`Imported and encrypted. First Solana account: ${account.address}`);
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Accounts</h2>
+      <p>Create/import encrypted non-custodial accounts. Seed phrases stay on this device.</p>
+      <div className="account-list">
+        {["Main", "Trading", "Vault"].map((name, index) => <article key={name}><div className={`mini-avatar c${index}`}>{name[0]}</div><strong>{name}</strong><span>Unique vault account slot</span></article>)}
+      </div>
+      <div className="form-grid vault-form">
+        <button className="primary" onClick={generatePhrase}><Plus size={18} /> Generate 12-word seed</button>
+        {generatedPhrase && <textarea readOnly value={generatedPhrase} />}
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+        <button className="primary" onClick={encryptGeneratedVault}><LockKeyhole size={18} /> Encrypt generated vault</button>
+        <textarea value={importPhrase} onChange={(event) => setImportPhrase(event.target.value)} placeholder="Import existing seed phrase" />
+        <button className="primary" onClick={importVault}><Import size={18} /> Import encrypted vault</button>
+      </div>
+      <p className="status">{vaultStatus}</p>
+    </section>
+  );
 }
 
 function ProfilePage({ setPage }) {
