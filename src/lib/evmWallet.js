@@ -2,6 +2,7 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  fallback,
   formatEther,
   formatUnits,
   http,
@@ -94,6 +95,33 @@ const CHAIN_IDS = {
   ZetaChain: 7000
 };
 
+const EVM_RPC_FALLBACKS = {
+  Ethereum: ["https://rpc.ankr.com/eth"],
+  Polygon: ["https://polygon-rpc.com"],
+  "BNB Chain": ["https://bsc-dataseed.binance.org"],
+  Base: ["https://mainnet.base.org"],
+  Arbitrum: ["https://arb1.arbitrum.io/rpc"],
+  Optimism: ["https://mainnet.optimism.io"],
+  Avalanche: ["https://api.avax.network/ext/bc/C/rpc"],
+  Fantom: ["https://rpc.ftm.tools"],
+  Linea: ["https://linea.drpc.org"],
+  Scroll: ["https://rpc.ankr.com/scroll"],
+  "zkSync Era": ["https://zksync-era.blockpi.network/v1/rpc/public"],
+  Mantle: ["https://mantle.publicnode.com"],
+  Gnosis: ["https://gnosis-rpc.publicnode.com"],
+  Celo: ["https://celo-rpc.publicnode.com"],
+  Moonbeam: ["https://moonbeam.public.blastapi.io"],
+  Cronos: ["https://cronos-evm-rpc.publicnode.com"],
+  Kava: ["https://kava-evm-rpc.publicnode.com"],
+  Zora: ["https://zora.drpc.org"],
+  Sonic: ["https://sonic-rpc.publicnode.com"],
+  Berachain: ["https://berachain-rpc.publicnode.com"],
+  Flare: ["https://flare-api.flare.network/ext/C/rpc"],
+  PulseChain: ["https://rpc-pulsechain.g4mm4.io"],
+  "OKX Chain": ["https://exchainrpc.okex.org"],
+  ZetaChain: ["https://zetachain-evm.blockpi.network/v1/rpc/public"]
+};
+
 export async function getEvmWalletState({ password, chain, accountIndex = 0 }) {
   const { account, publicClient } = await unlockEvmSigner({ password, chain, accountIndex });
   const balance = await publicClient.getBalance({ address: account.address });
@@ -177,19 +205,30 @@ export function isSupportedEvmChain(chain) {
   return Boolean(chain?.rpc?.startsWith("http") && evmChainId(chain));
 }
 
+export function evmRpcUrlsForChain(chain) {
+  return [...new Set([
+    chain?.rpc,
+    ...(Array.isArray(chain?.rpcs) ? chain.rpcs : []),
+    ...(EVM_RPC_FALLBACKS[chain?.name] ?? [])
+  ].filter((url) => typeof url === "string" && url.startsWith("http")))];
+}
+
 async function unlockEvmSigner({ password, chain, accountIndex }) {
   if (!isSupportedEvmChain(chain)) throw new Error(`${chain.name} is not yet wired for live EVM signing.`);
   const vault = await unlockVault(password);
   if (!vault.phrase) throw new Error("Vault does not contain a mnemonic phrase.");
   const account = mnemonicToAccount(vault.phrase, { path: `m/44'/60'/0'/0/${accountIndex}` });
+  const rpcUrls = evmRpcUrlsForChain(chain);
   const evmChain = defineChain({
     id: evmChainId(chain),
     name: chain.name,
     nativeCurrency: { name: chain.native, symbol: chain.native, decimals: 18 },
-    rpcUrls: { default: { http: [chain.rpc] }, public: { http: [chain.rpc] } },
+    rpcUrls: { default: { http: rpcUrls }, public: { http: rpcUrls } },
     blockExplorers: { default: { name: "Explorer", url: chain.explorer } }
   });
-  const transport = http(chain.rpc);
+  const transport = rpcUrls.length > 1
+    ? fallback(rpcUrls.map((url) => http(url)), { retryCount: 2 })
+    : http(rpcUrls[0]);
   return {
     account,
     publicClient: createPublicClient({ chain: evmChain, transport }),

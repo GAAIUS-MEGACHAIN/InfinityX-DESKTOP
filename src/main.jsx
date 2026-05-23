@@ -35,7 +35,7 @@ import "./styles.css";
 import { createMnemonic, deriveSolanaAccount, hasVault, saveVault, unlockVault, validateSeedPhrase } from "./lib/vault.js";
 import { extraChains } from "./data/extraChains.js";
 import { initializeGoogleSignIn } from "./lib/googleAuth.js";
-import { getLifiBridgeQuote } from "./lib/bridge.js";
+import { EVM_NATIVE_TOKEN, getLifiBridgeQuote } from "./lib/bridge.js";
 import { deriveEvmAddress, isSupportedEvmChain, sendEvmTransactionRequest } from "./lib/evmWallet.js";
 import { connectInjectedWallet, walletAvailability } from "./lib/externalWallets.js";
 import { executeJupiterSwap, getJupiterQuote } from "./lib/jupiter.js";
@@ -104,6 +104,7 @@ const PROTECTED_PAGES = new Set([
   "bridge",
   "buy",
   "connect",
+  "convert",
   "create",
   "dapps",
   "dex",
@@ -156,12 +157,7 @@ function App() {
 
   async function loadLocalRegistry({ silent = false } = {}) {
     if (!silent) setCoinStatus("Refreshing local token registry...");
-    const response = await fetch("/registry/top-3000-tokens.json");
-    if (!response.ok) {
-      setCoinStatus(`Local registry error: ${response.status}`);
-      return [];
-    }
-    const payload = await response.json();
+    const payload = await fetchJsonWithBackend("/registry/top-3000-tokens.json", "/registry/tokens");
     setRegistry(payload.assets ?? []);
     setCoinStatus(silent ? "" : `Local registry ready: ${payload.count} assets`);
     return payload.assets ?? [];
@@ -207,6 +203,7 @@ function App() {
     if (page === "receive") return <ReceivePage chain={chain} registry={registry} />;
     if (page === "buy") return <BuyPage markets={markets} setMarkets={setMarkets} />;
     if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} registry={registry} loadLocalRegistry={loadLocalRegistry} />;
+    if (page === "convert") return <ConvertPage quoteDex={quoteDex} />;
     if (page === "create") return <CreateTokenPage />;
     if (page === "connect") return <ConnectPage setPage={navigate} />;
     if (page === "import") return <ImportPage setPage={navigate} />;
@@ -216,9 +213,9 @@ function App() {
     if (page === "services") return <ServicesPage setPage={navigate} />;
     if (page === "bridge") return <BridgePage />;
     if (page === "staking") return <StakingPage />;
-    if (page === "dapps") return <RegistryPage title="dApps" path="/registry/dapps.json" field="dapps" items={dapps} setItems={setDapps} />;
-    if (page === "nfts") return <RegistryPage title="NFTs" path="/registry/nfts.json" field="collections" items={nfts} setItems={setNfts} />;
-    if (page === "metaverse") return <RegistryPage title="Metaverse API" path="/registry/metaverse.json" field="worlds" items={metaverse} setItems={setMetaverse} />;
+    if (page === "dapps") return <RegistryPage title="dApps" path="/registry/dapps.json" backendPath="/dapps" field="dapps" items={dapps} setItems={setDapps} />;
+    if (page === "nfts") return <RegistryPage title="NFTs" path="/registry/nfts.json" backendPath="/nfts" field="collections" items={nfts} setItems={setNfts} />;
+    if (page === "metaverse") return <RegistryPage title="Metaverse API" path="/registry/metaverse.json" backendPath="/metaverse" field="worlds" items={metaverse} setItems={setMetaverse} />;
     if (page === "walletconnect") return <WalletConnectPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
@@ -619,10 +616,12 @@ function DexPage({ status, quoteDex }) {
 
 function ServicesPage({ setPage }) {
   const quick = [
+    { name: "Convert", page: "convert", icon: ArrowDownUp, detail: "Jupiter and LI.FI routes" },
     { name: "Bridge", page: "bridge", icon: Layers3 },
+    { name: "Markets", page: "news", icon: CircleDollarSign, detail: "Top assets and pairs" },
     { name: "dApps", page: "dapps", icon: Globe2 },
     { name: "NFTs", page: "nfts", icon: Compass },
-    { name: "Metaverse API", page: "metaverse", icon: Layers3 },
+    { name: "Metaverse", page: "metaverse", icon: Layers3, detail: "World/API registry" },
     { name: "WalletConnect", page: "walletconnect", icon: Zap }
   ];
   return (
@@ -630,7 +629,80 @@ function ServicesPage({ setPage }) {
       <h2>Services</h2>
       <p>Small service fees with IFX discounts.</p>
       <div className="service-grid">{services.map((service) => { const Icon = service.icon; return <article key={service.name}><Icon size={20} /><strong>{service.name}</strong><span>{service.fee}</span><em>IFX {service.ifx}</em></article>; })}</div>
-      <div className="profile-list service-links">{quick.map(({ name, page, icon: Icon }) => <button key={name} onClick={() => setPage(page)}><Icon size={18} /> {name}</button>)}</div>
+      <div className="profile-list service-links">{quick.map(({ name, page, icon: Icon, detail }) => <button key={name} onClick={() => setPage(page)}><Icon size={18} /> {name}{detail && <span>{detail}</span>}</button>)}</div>
+    </section>
+  );
+}
+
+function ConvertPage() {
+  const evmChains = chains.filter(isSupportedEvmChain);
+  const [solAmount, setSolAmount] = useState("0.1");
+  const [solQuote, setSolQuote] = useState("Jupiter quote fallback path: direct Jupiter route, then DEX page execution.");
+  const [fromName, setFromName] = useState("Ethereum");
+  const [toName, setToName] = useState("Polygon");
+  const [fromToken, setFromToken] = useState(EVM_NATIVE_TOKEN);
+  const [toToken, setToToken] = useState(EVM_NATIVE_TOKEN);
+  const [fromAmount, setFromAmount] = useState("1000000000000000");
+  const [address, setAddress] = useState("");
+  const [crossQuote, setCrossQuote] = useState("LI.FI quote fallback path: route quote here, Bridge page for signed execution.");
+
+  async function quoteSolanaConvert() {
+    setSolQuote("Fetching live Jupiter convert quote...");
+    try {
+      const quote = await getJupiterQuote({
+        inputMint: WSOL_MINT,
+        outputMint: USDC_SOL_MINT,
+        amount: Math.round(Number(solAmount) * 1_000_000_000),
+        slippageBps: 50
+      });
+      setSolQuote(`${solAmount} SOL -> ${(Number(quote.outAmount) / 1_000_000).toFixed(6)} USDC. Price impact ${quote.priceImpactPct ?? "0"}%.`);
+    } catch (error) {
+      setSolQuote(`Jupiter quote failed: ${error.message}`);
+    }
+  }
+
+  async function quoteCrossChainConvert() {
+    if (!address.trim()) {
+      setCrossQuote("Enter your EVM address so LI.FI can build a real convert route.");
+      return;
+    }
+    const fromChain = evmChains.find((item) => item.name === fromName);
+    const toChain = evmChains.find((item) => item.name === toName);
+    setCrossQuote("Fetching LI.FI convert route...");
+    try {
+      const quote = await getLifiBridgeQuote({
+        fromChain: evmChainId(fromChain),
+        toChain: evmChainId(toChain),
+        fromToken,
+        toToken,
+        fromAmount,
+        fromAddress: address.trim(),
+        toAddress: address.trim()
+      });
+      setCrossQuote(`${quote.tool ?? "LI.FI"} route: estimated receive ${quote.estimate?.toAmountMin ?? quote.estimate?.toAmount ?? "returned"} before execution. Use Bridge for signed broadcast.`);
+    } catch (error) {
+      setCrossQuote(`LI.FI quote failed: ${error.message}`);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Convert</h2>
+      <p>Convert is kept inside Services so the bottom wallet tabs stay clean. Fees follow the swap/bridge IFX discount policy.</p>
+      <div className="swap-box"><label>Solana convert</label><input value={solAmount} onChange={(event) => setSolAmount(event.target.value)} /><strong>SOL to USDC</strong></div>
+      <button className="primary" onClick={quoteSolanaConvert}><ArrowDownUp size={18} /> Quote Solana Convert</button>
+      <p className="status">{solQuote}</p>
+      <div className="form-grid token-send-form">
+        <select value={fromName} onChange={(event) => setFromName(event.target.value)}>{evmChains.map((item) => <option key={item.name}>{item.name}</option>)}</select>
+        <select value={toName} onChange={(event) => setToName(event.target.value)}>{evmChains.map((item) => <option key={item.name}>{item.name}</option>)}</select>
+        <input value={fromToken} onChange={(event) => setFromToken(event.target.value)} placeholder="From token contract, 0x00 native" />
+        <input value={toToken} onChange={(event) => setToToken(event.target.value)} placeholder="To token contract, 0x00 native" />
+        <input value={fromAmount} onChange={(event) => setFromAmount(event.target.value)} placeholder="Amount in smallest units" />
+        <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Your EVM address for route quote" />
+      </div>
+      <button className="secondary" onClick={quoteCrossChainConvert}><Layers3 size={18} /> Quote Cross-chain Convert</button>
+      <p className="status">{crossQuote}</p>
+      <div className="fee-note">Fallbacks: Solana RPC cluster for wallet operations, EVM public RPC alternatives for supported networks, LI.FI/Bridge for cross-chain conversion.</div>
     </section>
   );
 }
@@ -639,13 +711,10 @@ function ChainsPage({ selected, setChain }) {
   return <section className="page-card"><h2>{selected.name}</h2><p>{selected.kind} network - Native asset {selected.native}</p><div className="chain-detail"><span>RPC</span><strong>{selected.rpc}</strong><span>Explorer</span><strong>{selected.explorer}</strong></div><div className="chain-list-page">{chains.map((chain) => <button key={chain.name} onClick={() => setChain(chain)}>{chain.name}<span>{chain.kind}</span></button>)}</div></section>;
 }
 
-function RegistryPage({ title, path, field, items, setItems }) {
+function RegistryPage({ title, path, backendPath, field, items, setItems }) {
   async function load() {
-    const response = await fetch(path);
-    if (response.ok) {
-      const payload = await response.json();
-      setItems(payload[field] ?? []);
-    }
+    const payload = await fetchJsonWithBackend(path, backendPath);
+    setItems(payload[field] ?? []);
   }
   return (
     <section className="page-card">
@@ -1135,8 +1204,7 @@ function ReceivePage({ chain, registry }) {
 
 function BuyPage({ markets, setMarkets }) {
   async function loadMarkets() {
-    const response = await fetch("/registry/markets.json");
-    if (response.ok) setMarkets(await response.json());
+    setMarkets(await fetchJsonWithBackend("/registry/markets.json", "/markets"));
   }
   return (
     <section className="page-card">
@@ -1338,6 +1406,27 @@ async function syncBackendProfile(mode, address) {
   } catch {
     // The wallet remains usable offline; backend sync never gates custody.
   }
+}
+
+async function fetchJsonWithBackend(staticPath, backendPath) {
+  let staticError = null;
+  try {
+    const response = await fetch(staticPath);
+    if (response.ok) return response.json();
+    staticError = new Error(`${staticPath} returned ${response.status}`);
+  } catch (error) {
+    staticError = error;
+  }
+  if (backendPath) {
+    try {
+      const response = await fetch(`http://127.0.0.1:8787${backendPath}`);
+      if (response.ok) return response.json();
+      throw new Error(`${backendPath} returned ${response.status}`);
+    } catch (backendError) {
+      throw new Error(`${staticError?.message ?? "Static registry failed"}; backend fallback failed: ${backendError.message}`);
+    }
+  }
+  throw staticError ?? new Error(`${staticPath} unavailable`);
 }
 
 function formatBalance(value) {

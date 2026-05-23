@@ -1,0 +1,4 @@
+[
+  { "id": "ifx-live", "type": "token", "title": "IFX is live", "body": "InfinityX token mint is active on Solana mainnet.", "read": false },
+  { "id": "security-local-signing", "type": "security", "title": "Local signing only", "body": "InfinityX backend must never receive seed phrases or private keys.", "read": false }
+]

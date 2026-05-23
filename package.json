@@ -9,8 +9,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "desktop": "electron .",
-    "exe:unpacked": "npm run build && electron-builder --win dir --x64",
-    "exe": "npm run build && electron-builder --win nsis --x64"
+    "backend:build": "python -m PyInstaller --onefile --clean --name infinityx_backend --distpath backend-dist --workpath backend-build --specpath backend-build backend/infinityx_backend.py",
+    "exe:unpacked": "npm run build && npm run backend:build && electron-builder --win dir --x64",
+    "exe": "npm run build && npm run backend:build && electron-builder --win nsis --x64"
   },
   "build": {
     "appId": "com.infinityx.wallet.desktop",
@@ -25,6 +26,22 @@
       "electron/**/*",
       "assets/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend-dist",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "backend/data",
+        "to": "backend/data",
+        "filter": [
+          "**/*.json"
+        ]
+      }
     ],
     "win": {
       "target": "nsis",

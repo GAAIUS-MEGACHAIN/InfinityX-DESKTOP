@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-05-23T00:00:00.000Z",
+  "api": {
+    "identity": "/metaverse/identity",
+    "assets": "/metaverse/assets",
+    "land": "/metaverse/land",
+    "sessions": "/metaverse/sessions"
+  },
+  "feePolicy": {
+    "marketplaceTradeBps": 25,
+    "creatorRoyaltyPassThrough": true,
+    "ifxDiscountPercent": 50
+  },
+  "worlds": [
+    { "name": "InfinityX World", "chain": "Main", "status": "api-design", "assetStandard": "multi-chain NFT avatar and land registry" },
+    { "name": "Decentraland", "chain": "Ethereum", "status": "external-link", "assetStandard": "LAND / wearables" },
+    { "name": "The Sandbox", "chain": "Ethereum/Polygon", "status": "external-link", "assetStandard": "LAND / assets" },
+    { "name": "Otherside", "chain": "Ethereum", "status": "external-link", "assetStandard": "NFT land" }
+  ]
+}

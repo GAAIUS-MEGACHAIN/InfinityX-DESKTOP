@@ -1,0 +1,16 @@
+{
+  "revenueDestinationSolana": "NHMs85t1zJDKU8ThrxEz6xC4S1R2XANadmk7K55tG3Q",
+  "thresholdUsd": 1000,
+  "policy": "non-custodial treasury sweep requires a signed transaction",
+  "multisig": {
+    "status": "deployment-ready",
+    "recommended": "Use Squads/Safe or audited chain-native multisig before public fee collection",
+    "minimumOwners": 3,
+    "threshold": 2
+  },
+  "liquidity": {
+    "status": "requires funded pool creation",
+    "recommendedSolanaDexes": ["Orca", "Raydium"],
+    "recommendedPairs": ["IFX/SOL", "IFX/USDC", "IFX/USDT"]
+  }
+}

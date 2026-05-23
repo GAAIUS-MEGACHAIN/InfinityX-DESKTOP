@@ -1,0 +1,23 @@
+{
+  "baseAsset": "IFX",
+  "baseMint": "4s9Bbk3AB223bbqAHhiCcqVg14C6m46ioixJFXMcunm1",
+  "feePolicy": {
+    "spotSwapBps": 15,
+    "stablePairBps": 10,
+    "bridgeBps": 20,
+    "buyBps": 25,
+    "ifxDiscountPercent": 50
+  },
+  "revenueDestinationSolana": "NHMs85t1zJDKU8ThrxEz6xC4S1R2XANadmk7K55tG3Q",
+  "pairs": [
+    { "pair": "IFX/SOL", "chain": "Solana", "quoteSource": "Jupiter/Raydium/Orca", "status": "route-when-liquidity-exists" },
+    { "pair": "IFX/USDC", "chain": "Solana", "quoteSource": "Jupiter/Raydium/Orca", "status": "route-when-liquidity-exists" },
+    { "pair": "IFX/USDT", "chain": "Solana", "quoteSource": "Jupiter/Raydium/Orca", "status": "route-when-liquidity-exists" },
+    { "pair": "SOL/USDC", "chain": "Solana", "quoteSource": "Jupiter", "status": "live-quotes" },
+    { "pair": "BTC/USDT", "chain": "Main", "quoteSource": "aggregated CEX/DEX reference", "status": "index-only-until-provider" },
+    { "pair": "ETH/USDT", "chain": "Ethereum", "quoteSource": "Uniswap/1inch/ParaSwap", "status": "provider-required" },
+    { "pair": "ETH/USDC", "chain": "Base", "quoteSource": "Uniswap/1inch/ParaSwap", "status": "provider-required" },
+    { "pair": "BNB/USDT", "chain": "BNB Chain", "quoteSource": "PancakeSwap/1inch", "status": "provider-required" },
+    { "pair": "POL/USDC", "chain": "Polygon", "quoteSource": "Uniswap/1inch/ParaSwap", "status": "provider-required" }
+  ]
+}

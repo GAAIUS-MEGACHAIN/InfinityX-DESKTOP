@@ -1,0 +1,22 @@
+{
+  "mpc": {
+    "status": "designed",
+    "custody": "non-custodial threshold shares only",
+    "shares": [
+      "device encrypted share",
+      "recovery service encrypted share",
+      "optional guardian encrypted share"
+    ],
+    "backendRule": "backend never receives enough material to sign alone"
+  },
+  "socialRecovery": {
+    "status": "contract template included",
+    "contract": "contracts/InfinityXGuardianRecovery.sol",
+    "requirements": [
+      "guardian threshold",
+      "time delay",
+      "wallet-owner cancellation",
+      "external audit before mainnet"
+    ]
+  }
+}

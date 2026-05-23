@@ -16,6 +16,20 @@ const COSMOS_CHAINS = {
   Coreum: { prefix: "core", denom: "ucore", symbol: "COREUM", decimals: 6, rpc: "https://full-node.mainnet-1.coreum.dev:26657", gasPrice: "0.0625ucore" }
 };
 
+const COSMOS_RPC_FALLBACKS = {
+  "Cosmos Hub": ["https://rpc.cosmos.directory/cosmoshub"],
+  Osmosis: ["https://rpc.cosmos.directory/osmosis"],
+  Celestia: ["https://rpc.cosmos.directory/celestia"],
+  Stargaze: ["https://rpc.cosmos.directory/stargaze"],
+  Juno: ["https://rpc.cosmos.directory/juno"],
+  Akash: ["https://rpc.cosmos.directory/akash"],
+  Kujira: ["https://rpc.cosmos.directory/kujira"],
+  "Secret Network": ["https://rpc.cosmos.directory/secretnetwork"],
+  Stride: ["https://rpc.cosmos.directory/stride"],
+  Evmos: ["https://rpc.cosmos.directory/evmos"],
+  Coreum: ["https://rpc.cosmos.directory/coreum"]
+};
+
 export function isSupportedCosmosChain(chain) {
   return Boolean(COSMOS_CHAINS[chain?.name]);
 }
@@ -24,9 +38,14 @@ export async function getCosmosWalletState({ password, chain, accountIndex = 0 }
   const config = cosmosConfig(chain);
   const wallet = await unlockCosmosWallet({ password, chain, accountIndex });
   const [account] = await wallet.getAccounts();
-  const client = await StargateClient.connect(config.rpc);
-  const balance = await client.getBalance(account.address, config.denom);
-  client.disconnect();
+  const { result: balance } = await withCosmosRpc(chain, async (rpc) => {
+    const client = await StargateClient.connect(rpc);
+    try {
+      return await client.getBalance(account.address, config.denom);
+    } finally {
+      client.disconnect();
+    }
+  });
   return {
     address: account.address,
     balance: formatUnits(balance.amount, config.decimals),
@@ -41,17 +60,22 @@ export async function sendCosmosNative({ password, chain, to, amount, accountInd
   if (!to?.startsWith(config.prefix)) throw new Error(`Recipient must be a ${chain.name} address.`);
   const wallet = await unlockCosmosWallet({ password, chain, accountIndex });
   const [account] = await wallet.getAccounts();
-  const client = await SigningStargateClient.connectWithSigner(config.rpc, wallet, {
-    gasPrice: GasPrice.fromString(config.gasPrice)
+  const { result } = await withCosmosRpc(chain, async (rpc) => {
+    const client = await SigningStargateClient.connectWithSigner(rpc, wallet, {
+      gasPrice: GasPrice.fromString(config.gasPrice)
+    });
+    try {
+      return await client.sendTokens(
+        account.address,
+        to.trim(),
+        [{ denom: config.denom, amount: parseUnits(amount, config.decimals) }],
+        "auto",
+        "InfinityX"
+      );
+    } finally {
+      client.disconnect();
+    }
   });
-  const result = await client.sendTokens(
-    account.address,
-    to.trim(),
-    [{ denom: config.denom, amount: parseUnits(amount, config.decimals) }],
-    "auto",
-    "InfinityX"
-  );
-  client.disconnect();
   if (result.code !== 0) throw new Error(result.rawLog || `${chain.name} transaction failed.`);
   return { hash: result.transactionHash, explorer: explorerTxUrl(chain, result.transactionHash) };
 }
@@ -70,6 +94,23 @@ function cosmosConfig(chain) {
   const config = COSMOS_CHAINS[chain?.name];
   if (!config) throw new Error(`${chain?.name ?? "This chain"} is not supported by the Cosmos adapter yet.`);
   return config;
+}
+
+async function withCosmosRpc(chain, fn) {
+  const config = cosmosConfig(chain);
+  const errors = [];
+  for (const rpc of cosmosRpcCandidates(chain, config)) {
+    try {
+      return { result: await fn(rpc), rpc };
+    } catch (error) {
+      errors.push(`${rpc}: ${error.message}`);
+    }
+  }
+  throw new Error(`All ${chain.name} RPCs failed. ${errors.join(" | ")}`);
+}
+
+function cosmosRpcCandidates(chain, config) {
+  return [...new Set([chain?.rpc, config.rpc, ...(COSMOS_RPC_FALLBACKS[chain?.name] ?? [])].filter((rpc) => typeof rpc === "string" && rpc.startsWith("http")))];
 }
 
 function parseUnits(value, decimals) {

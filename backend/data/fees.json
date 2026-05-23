@@ -1,0 +1,12 @@
+{
+  "swapBps": 15,
+  "bridgeBps": 20,
+  "buyBps": 25,
+  "tokenCreationBps": 25,
+  "stakingBps": 10,
+  "paymentBps": 10,
+  "ifxDiscountPercent": 50,
+  "revenueDestinationSolana": "NHMs85t1zJDKU8ThrxEz6xC4S1R2XANadmk7K55tG3Q",
+  "autoSweepThresholdUsd": 1000,
+  "autoSweepPolicy": "requires signed treasury transaction; backend records intent only"
+}

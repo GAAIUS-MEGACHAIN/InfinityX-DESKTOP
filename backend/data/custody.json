@@ -1,0 +1,12 @@
+{
+  "mode": "non-custodial",
+  "backendPrivateKeys": "forbidden",
+  "seedPhraseStorage": "client-only encrypted storage or hardware-backed keystore",
+  "passkeys": "WebAuthn/passkey approval for local signing gate",
+  "biometrics": "Android Keystore or platform secure enclave gate",
+  "mpc": "2-of-3 threshold design: device share, recovery share, optional guardian share",
+  "socialRecovery": "guardian approval policy with time-lock and user-visible recovery intent",
+  "sendPolicy": "backend returns unsigned intents; client signs locally",
+  "bridgePolicy": "backend quotes and simulates; client signs locally",
+  "auditPolicy": "source integrity report compressed and committed to audits/latest-audit.json.gz"
+}

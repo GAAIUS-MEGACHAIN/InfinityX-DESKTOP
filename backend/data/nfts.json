@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-05-23T00:00:00.000Z",
+  "features": ["NFT gallery", "collection import", "marketplace links", "metadata cache", "spam filtering policy"],
+  "collections": [
+    { "name": "InfinityX Genesis", "chain": "Solana", "status": "planned", "utility": "early ecosystem identity" },
+    { "name": "Bitcoin Ordinals", "chain": "Bitcoin", "status": "indexer-required", "utility": "collectibles" },
+    { "name": "Ethereum ERC-721", "chain": "Ethereum", "status": "provider-required", "utility": "standard NFT support" },
+    { "name": "Solana Metaplex", "chain": "Solana", "status": "provider-required", "utility": "standard NFT support" },
+    { "name": "Polygon NFTs", "chain": "Polygon", "status": "provider-required", "utility": "low-fee NFT support" }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-05-23T00:00:00.000Z",
+  "feePolicy": {
+    "dappReferralBps": 10,
+    "ifxDiscountPercent": 50,
+    "listingApplicationFee": "manual review"
+  },
+  "dapps": [
+    { "name": "Jupiter", "category": "DEX Aggregator", "chains": ["Solana"], "url": "https://jup.ag", "status": "external" },
+    { "name": "Raydium", "category": "DEX", "chains": ["Solana"], "url": "https://raydium.io", "status": "external" },
+    { "name": "Orca", "category": "DEX", "chains": ["Solana"], "url": "https://www.orca.so", "status": "external" },
+    { "name": "Uniswap", "category": "DEX", "chains": ["Ethereum", "Polygon", "Base", "Arbitrum", "Optimism"], "url": "https://app.uniswap.org", "status": "external" },
+    { "name": "1inch", "category": "DEX Aggregator", "chains": ["Ethereum", "Polygon", "BNB Chain", "Base", "Arbitrum", "Optimism", "Avalanche"], "url": "https://app.1inch.io", "status": "external" },
+    { "name": "OpenSea", "category": "NFT Marketplace", "chains": ["Ethereum", "Polygon", "Base", "Arbitrum", "Optimism", "Avalanche"], "url": "https://opensea.io", "status": "external" },
+    { "name": "Magic Eden", "category": "NFT Marketplace", "chains": ["Solana", "Bitcoin", "Ethereum", "Polygon"], "url": "https://magiceden.io", "status": "external" },
+    { "name": "Aave", "category": "Lending", "chains": ["Ethereum", "Polygon", "Base", "Arbitrum", "Optimism", "Avalanche"], "url": "https://app.aave.com", "status": "external" },
+    { "name": "Curve", "category": "Stable Swap", "chains": ["Ethereum", "Polygon", "Arbitrum", "Optimism", "Avalanche", "Fantom"], "url": "https://curve.fi", "status": "external" },
+    { "name": "PancakeSwap", "category": "DEX", "chains": ["BNB Chain", "Ethereum", "Base", "Arbitrum"], "url": "https://pancakeswap.finance", "status": "external" }
+  ]
+}

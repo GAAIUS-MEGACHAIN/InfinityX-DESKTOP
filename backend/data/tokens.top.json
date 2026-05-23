@@ -1,0 +1,20 @@
+[
+  { "network": "main", "symbol": "IFX", "name": "InfinityX", "mint": "4s9Bbk3AB223bbqAHhiCcqVg14C6m46ioixJFXMcunm1" },
+  { "network": "solana", "symbol": "SOL", "name": "Solana" },
+  { "network": "solana", "symbol": "USDC", "name": "USD Coin", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+  { "network": "ethereum", "symbol": "ETH", "name": "Ethereum" },
+  { "network": "ethereum", "symbol": "USDT", "name": "Tether USD" },
+  { "network": "ethereum", "symbol": "WBTC", "name": "Wrapped Bitcoin" },
+  { "network": "polygon", "symbol": "POL", "name": "Polygon" },
+  { "network": "polygon", "symbol": "USDC", "name": "USD Coin" },
+  { "network": "bnb", "symbol": "BNB", "name": "BNB" },
+  { "network": "bnb", "symbol": "CAKE", "name": "PancakeSwap" },
+  { "network": "base", "symbol": "ETH", "name": "Base ETH" },
+  { "network": "arbitrum", "symbol": "ARB", "name": "Arbitrum" },
+  { "network": "optimism", "symbol": "OP", "name": "Optimism" },
+  { "network": "avalanche", "symbol": "AVAX", "name": "Avalanche" },
+  { "network": "fantom", "symbol": "FTM", "name": "Fantom" },
+  { "network": "bitcoin", "symbol": "BTC", "name": "Bitcoin" },
+  { "network": "cardano", "symbol": "ADA", "name": "Cardano" },
+  { "network": "xrp", "symbol": "XRP", "name": "XRP" }
+]
