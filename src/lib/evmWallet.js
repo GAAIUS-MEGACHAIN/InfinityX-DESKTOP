@@ -3,6 +3,7 @@ import {
   createWalletClient,
   defineChain,
   formatEther,
+  formatUnits,
   http,
   isAddress,
   parseAbi,
@@ -37,6 +38,26 @@ export async function getEvmWalletState({ password, chain, accountIndex = 0 }) {
     address: account.address,
     native: formatEther(balance),
     wei: balance.toString()
+  };
+}
+
+export async function getErc20TokenBalance({ password, chain, tokenAddress, decimals, accountIndex = 0 }) {
+  if (!isAddress(tokenAddress)) throw new Error("Invalid ERC-20 contract address.");
+  const { account, publicClient } = await unlockEvmSigner({ password, chain, accountIndex });
+  const tokenDecimals = Number.isFinite(Number(decimals))
+    ? Number(decimals)
+    : Number(await publicClient.readContract({ address: tokenAddress, abi: ERC20_ABI, functionName: "decimals" }));
+  const balance = await publicClient.readContract({
+    address: tokenAddress,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: [account.address]
+  });
+  return {
+    address: account.address,
+    raw: balance.toString(),
+    decimals: tokenDecimals,
+    uiAmount: formatUnits(balance, tokenDecimals)
   };
 }
 

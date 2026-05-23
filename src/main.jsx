@@ -1,5 +1,5 @@
 import "./polyfills.js";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowDownUp,
@@ -36,12 +36,12 @@ import { createMnemonic, deriveSolanaAccount, saveVault, validateSeedPhrase } fr
 import { extraChains } from "./data/extraChains.js";
 import { initializeGoogleSignIn } from "./lib/googleAuth.js";
 import { getLifiBridgeQuote } from "./lib/bridge.js";
-import { deriveEvmAddress, getEvmWalletState, isSupportedEvmChain, sendErc20Token, sendEvmNative, sendEvmTransactionRequest } from "./lib/evmWallet.js";
+import { deriveEvmAddress, getErc20TokenBalance, getEvmWalletState, isSupportedEvmChain, sendErc20Token, sendEvmNative, sendEvmTransactionRequest } from "./lib/evmWallet.js";
 import { connectInjectedWallet, walletAvailability } from "./lib/externalWallets.js";
 import { executeJupiterSwap, getJupiterQuote } from "./lib/jupiter.js";
 import { getNativeSecurityStatus, requireNativeSigningGate } from "./lib/nativeSecurity.js";
 import { explainSendRisk } from "./lib/security.js";
-import { createAndDelegateSolStake, createSolanaSplToken, getSolanaWalletState, IFX_MINT, quoteSolanaTokenCreation, sendSol, sendSplToken } from "./lib/solanaWallet.js";
+import { createAndDelegateSolStake, createSolanaSplToken, getSolanaWalletState, getSplTokenBalance, IFX_MINT, quoteSolanaTokenCreation, sendSol, sendSplToken } from "./lib/solanaWallet.js";
 import { approveWalletConnectProposal, initializeWalletConnect, rejectWalletConnectProposal, rejectWalletConnectRequest } from "./lib/walletConnect.js";
 
 const SERVICE_FEE_BPS = 15;
@@ -103,10 +103,11 @@ function App() {
   const [chainOpen, setChainOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [coins, setCoins] = useState([]);
-  const [coinStatus, setCoinStatus] = useState("Load CoinGecko top 3000");
+  const [coinStatus, setCoinStatus] = useState("");
   const [dexStatus, setDexStatus] = useState("Ready for live Jupiter quotes");
   const [recoveryStatus, setRecoveryStatus] = useState("Choose a recovery method");
   const [customToken, setCustomToken] = useState({ contract: "", symbol: "", network: "Main" });
+  const [selectedToken, setSelectedToken] = useState(null);
   const [registry, setRegistry] = useState([]);
   const [vaultStatus, setVaultStatus] = useState("No encrypted vault created yet");
   const [generatedPhrase, setGeneratedPhrase] = useState("");
@@ -114,6 +115,7 @@ function App() {
   const [dapps, setDapps] = useState([]);
   const [nfts, setNfts] = useState([]);
   const [metaverse, setMetaverse] = useState([]);
+  const registryLoadedRef = useRef(false);
 
   const filteredCoins = useMemo(() => {
     const registrySource = registryForChain(registry, chain.name);
@@ -122,8 +124,14 @@ function App() {
     return source.filter((coin) => `${coin.name} ${coin.symbol} ${coin.network ?? ""}`.toLowerCase().includes(q)).slice(0, 80);
   }, [coins, query, chain.name, registry]);
 
-  async function loadLocalRegistry() {
-    setCoinStatus("Loading local top-3000 registry...");
+  useEffect(() => {
+    if (registryLoadedRef.current) return;
+    registryLoadedRef.current = true;
+    loadLocalRegistry({ silent: true }).catch((error) => setCoinStatus(`Local registry error: ${error.message}`));
+  }, []);
+
+  async function loadLocalRegistry({ silent = false } = {}) {
+    if (!silent) setCoinStatus("Refreshing local token registry...");
     const response = await fetch("/registry/top-3000-tokens.json");
     if (!response.ok) {
       setCoinStatus(`Local registry error: ${response.status}`);
@@ -131,35 +139,19 @@ function App() {
     }
     const payload = await response.json();
     setRegistry(payload.assets ?? []);
-    setCoinStatus(`Local top-${payload.count} registry loaded`);
+    setCoinStatus(silent ? "" : `Local registry ready: ${payload.count} assets`);
     return payload.assets ?? [];
   }
 
   async function loadCoins() {
     const local = await loadLocalRegistry();
     if (local.length) return;
-    setCoinStatus("Loading verified market list...");
-    try {
-      const pages = Array.from({ length: 12 }, (_, index) => index + 1);
-      const results = [];
-      for (const pageNumber of pages) {
-        const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${pageNumber}&sparkline=false`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-        results.push(...await response.json());
-      }
-      setCoins(results.map((coin) => ({
-        symbol: coin.symbol.toUpperCase(),
-        name: coin.name,
-        network: "Auto-detect",
-        price: coin.current_price,
-        rank: coin.market_cap_rank,
-        image: coin.image
-      })));
-      setCoinStatus("Top 3000 loaded");
-    } catch (error) {
-      setCoinStatus(`CoinGecko error: ${error.message}`);
-    }
+    setCoinStatus("Local registry is unavailable in this build.");
+  }
+
+  function openToken(token) {
+    setSelectedToken(token);
+    setPage("token");
   }
 
   async function quoteDex() {
@@ -206,7 +198,8 @@ function App() {
     if (page === "walletconnect") return <WalletConnectPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
-    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} />;
+    if (page === "token") return <TokenDetailPage token={selectedToken} chain={chain} setPage={setPage} />;
+    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} openToken={openToken} />;
   }
 
   return (
@@ -246,7 +239,35 @@ function App() {
   );
 }
 
-function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage, setupPasskey, recoveryStatus, setRecoveryStatus, coinStatus }) {
+function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage, setupPasskey, recoveryStatus, setRecoveryStatus, coinStatus, openToken }) {
+  const liveChain = chain.name === "Main" ? chains.find((item) => item.name === "Solana") : chain;
+  const [password, setPassword] = useState("");
+  const [portfolio, setPortfolio] = useState(null);
+  const [balanceStatus, setBalanceStatus] = useState("Unlock to read live on-chain balance.");
+
+  async function unlockPortfolio() {
+    setBalanceStatus(`Reading ${liveChain.name} balance...`);
+    try {
+      if (liveChain.kind === "SVM") {
+        const state = await getSolanaWalletState({ password, rpcUrl: liveChain.rpc });
+        setPortfolio({ balance: state.sol, symbol: liveChain.native, address: state.address });
+        setBalanceStatus("Live Solana balance loaded.");
+        return;
+      }
+      if (liveChain.kind === "EVM" && isSupportedEvmChain(liveChain)) {
+        const state = await getEvmWalletState({ password, chain: liveChain });
+        setPortfolio({ balance: state.native, symbol: liveChain.native, address: state.address });
+        setBalanceStatus(`Live ${liveChain.name} balance loaded.`);
+        return;
+      }
+      setPortfolio(null);
+      setBalanceStatus(`${liveChain.name} needs its native signer/indexer adapter before live balances can be read here.`);
+    } catch (error) {
+      setPortfolio(null);
+      setBalanceStatus(error.message);
+    }
+  }
+
   return (
     <>
       <section className="account-card">
@@ -255,7 +276,16 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage,
           <div><p>{chain.name} Portfolio</p><strong>Account 1</strong></div>
           <button aria-label="Scan QR"><QrCode size={19} /></button>
         </div>
-        <div className="balance"><span>Total Portfolio Balance</span><h1>$0.00</h1><p>{chain.name} assets and services</p></div>
+        <div className="balance">
+          <span>Live Portfolio Balance</span>
+          <h1>{portfolio ? `${formatBalance(portfolio.balance)} ${portfolio.symbol}` : "--"}</h1>
+          <p>{portfolio?.address ?? `${liveChain.name} assets and services`}</p>
+        </div>
+        <div className="balance-unlock">
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+          <button onClick={unlockPortfolio}>Unlock</button>
+        </div>
+        <p className="balance-note">{balanceStatus}</p>
         <div className="actions">
           <button onClick={() => setPage("send")}><Send size={20} /><span>Send</span></button>
           <button onClick={() => setPage("receive")}><ScanLine size={20} /><span>Receive</span></button>
@@ -263,22 +293,21 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage,
           <button onClick={() => setPage("buy")}><ShoppingCart size={20} /><span>Buy</span></button>
         </div>
       </section>
-      <section className="ifx-card">
-        <div><span>InfinityX Main Coin</span><strong>Connect, create, import, or add assets</strong><small>{IFX_MINT}</small></div>
-        <button onClick={() => setPage("create")}><Plus size={17} /> Create</button>
-        <button onClick={() => setPage("connect")}><Zap size={17} /> Connect</button>
-        <button onClick={() => setPage("import")}><Import size={17} /> Import</button>
-        <button onClick={() => setPage("add")}><Plus size={17} /> Add</button>
+      <section className="quick-actions" aria-label="Wallet actions">
+        <button onClick={() => setPage("create")}><Plus size={17} /><span>Create</span></button>
+        <button onClick={() => setPage("connect")}><Zap size={17} /><span>Connect</span></button>
+        <button onClick={() => setPage("import")}><Import size={17} /><span>Import</span></button>
+        <button onClick={() => setPage("add")}><Plus size={17} /><span>Add</span></button>
       </section>
-      <section className="search-card"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search top coins, token symbol, contract" /><button onClick={loadCoins}><Plus size={17} /></button></section>
-      <p className="status inline-status">{coinStatus}</p>
+      <section className="search-card"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search local token registry" /><button aria-label="Refresh local registry" onClick={loadCoins}><Plus size={17} /></button></section>
+      {coinStatus && <p className="status inline-status">{coinStatus}</p>}
       <section className="token-list">
         {filteredCoins.map((token) => (
-          <article className="token-row" key={`${token.symbol}-${token.name}`}>
+          <button className="token-row" key={`${token.symbol}-${token.name}`} onClick={() => openToken(token)}>
             {token.image ? <img src={token.image} alt="" /> : <div className="token-icon">{token.symbol.slice(0, 2)}</div>}
             <div><strong>{token.name}</strong><span>{token.symbol} - {token.network ?? `Rank ${token.rank}`}</span></div>
-            <em>{token.price ? `$${Number(token.price).toLocaleString()}` : token.action}</em>
-          </article>
+            <em>{formatTokenRowMeta(token)}</em>
+          </button>
         ))}
       </section>
       <section className="panel">
@@ -292,6 +321,155 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage,
         <p className="status">{recoveryStatus}</p>
       </section>
     </>
+  );
+}
+
+function TokenDetailPage({ token, chain, setPage }) {
+  const networks = useMemo(() => getTokenNetworks(token, chain), [token, chain]);
+  const [selectedNetwork, setSelectedNetwork] = useState("");
+  const [password, setPassword] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [status, setStatus] = useState("Unlock to read balance or enter a recipient to send.");
+  const [walletState, setWalletState] = useState(null);
+
+  useEffect(() => {
+    setSelectedNetwork(networks[0] ?? chain.name);
+    setWalletState(null);
+    setStatus("Unlock to read balance or enter a recipient to send.");
+  }, [networks, chain.name]);
+
+  if (!token) {
+    return <section className="page-card"><h2>Asset</h2><p>No asset selected.</p><button className="primary" onClick={() => setPage("wallet")}>Back to Wallet</button></section>;
+  }
+
+  const effectiveNetwork = selectedNetwork || networks[0] || chain.name;
+  const selectedChain = chainByName(effectiveNetwork);
+  const contract = contractForChain(token, effectiveNetwork);
+  const native = isNativeAsset(token, selectedChain);
+  const liveMode = liveSupportForAsset({ selectedChain, token, contract, native });
+  const warnings = explainSendRisk({
+    chain: selectedChain,
+    assetType: native ? "native" : "token",
+    recipient,
+    amount,
+    tokenAddress: contract
+  });
+
+  async function unlockAsset() {
+    setStatus(`Reading ${token.symbol} on ${selectedChain.name}...`);
+    try {
+      if (selectedChain.kind === "SVM") {
+        if (native) {
+          const state = await getSolanaWalletState({ password, rpcUrl: selectedChain.rpc });
+          setWalletState({ address: state.address, balance: state.sol, symbol: selectedChain.native });
+          setStatus("Live Solana native balance loaded.");
+          return;
+        }
+        if (!contract) throw new Error(`${token.symbol} has no Solana mint in the local registry.`);
+        const state = await getSplTokenBalance({ password, mint: contract, rpcUrl: selectedChain.rpc });
+        setWalletState({ address: state.address, tokenAccount: state.tokenAccount, balance: state.uiAmount, symbol: token.symbol });
+        setStatus("Live SPL token balance loaded.");
+        return;
+      }
+      if (selectedChain.kind === "EVM" && isSupportedEvmChain(selectedChain)) {
+        if (native) {
+          const state = await getEvmWalletState({ password, chain: selectedChain });
+          setWalletState({ address: state.address, balance: state.native, symbol: selectedChain.native });
+          setStatus(`Live ${selectedChain.name} native balance loaded.`);
+          return;
+        }
+        if (!contract) throw new Error(`${token.symbol} has no ${selectedChain.name} contract in the local registry.`);
+        const state = await getErc20TokenBalance({ password, chain: selectedChain, tokenAddress: contract, decimals: token.decimals });
+        setWalletState({ address: state.address, balance: state.uiAmount, symbol: token.symbol });
+        setStatus("Live ERC-20 token balance loaded.");
+        return;
+      }
+      throw new Error(`${selectedChain.name} is in the registry, but live signing/indexing for this native chain is not bundled yet.`);
+    } catch (error) {
+      setWalletState(null);
+      setStatus(error.message);
+    }
+  }
+
+  async function sendAsset() {
+    if (!confirmed) {
+      setStatus("Tick the confirmation box after checking the recipient, chain, and amount.");
+      return;
+    }
+    setStatus(`Signing ${token.symbol} on ${selectedChain.name}...`);
+    try {
+      await requireNativeSigningGate(`Approve ${token.symbol} send`);
+      if (selectedChain.kind === "SVM") {
+        const result = native
+          ? await sendSol({ password, to: recipient, amountSol: amount, rpcUrl: selectedChain.rpc })
+          : await sendSplToken({ password, to: recipient, amount, mint: contract, rpcUrl: selectedChain.rpc });
+        setStatus(`Broadcast on Solana: ${result.signature}`);
+        return;
+      }
+      if (selectedChain.kind === "EVM" && isSupportedEvmChain(selectedChain)) {
+        const result = native
+          ? await sendEvmNative({ password, chain: selectedChain, to: recipient, amount })
+          : await sendErc20Token({ password, chain: selectedChain, tokenAddress: contract, to: recipient, amount, decimals: token.decimals });
+        setStatus(`Broadcast on ${selectedChain.name}: ${result.hash}`);
+        return;
+      }
+      throw new Error(`${selectedChain.name} needs a native signer/indexer adapter before live sends.`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  function stakeAsset() {
+    if (selectedChain.name === "Solana" && native) {
+      setPage("staking");
+      return;
+    }
+    setStatus(stakingStatusFor(token, selectedChain));
+  }
+
+  return (
+    <section className="page-card token-detail">
+      <div className="token-detail-head">
+        {token.image ? <img src={token.image} alt="" /> : <div className="token-icon">{token.symbol.slice(0, 2)}</div>}
+        <div>
+          <h2>{token.name}</h2>
+          <p>{token.symbol} {token.rank ? `- Rank ${token.rank}` : ""}</p>
+        </div>
+      </div>
+      <div className="token-metrics">
+        <article><span>Price</span><strong>{token.priceUsd || token.price ? `$${Number(token.priceUsd ?? token.price).toLocaleString()}` : "Local registry"}</strong></article>
+        <article><span>Network</span><strong>{selectedChain.name}</strong></article>
+        <article><span>Balance</span><strong>{walletState ? `${formatBalance(walletState.balance)} ${walletState.symbol}` : "--"}</strong></article>
+      </div>
+      <div className="form-grid">
+        <select value={effectiveNetwork} onChange={(event) => setSelectedNetwork(event.target.value)}>
+          {networks.map((network) => <option key={network}>{network}</option>)}
+        </select>
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+        <button className="primary" onClick={unlockAsset}><Wallet size={18} /> Show Balance / Receive</button>
+      </div>
+      {walletState && (
+        <div className="receive-list">
+          <article><strong>Receive address</strong><span>{walletState.address}</span><em>{contract ? `Contract/mint: ${contract}` : "Native asset"}</em></article>
+          {walletState.tokenAccount && <article><strong>Token account</strong><span>{walletState.tokenAccount}</span></article>}
+        </div>
+      )}
+      <div className="form-grid token-send-form">
+        <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient address" />
+        <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder={`Amount of ${token.symbol}`} />
+      </div>
+      <div className="risk-box">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>
+      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I reviewed this real transaction.</label>
+      <div className="detail-actions">
+        <button className="primary danger" onClick={sendAsset}><Send size={18} /> Send</button>
+        <button className="secondary" onClick={unlockAsset}><ScanLine size={18} /> Receive</button>
+        <button className="secondary" onClick={stakeAsset}><BadgeDollarSign size={18} /> Stake</button>
+      </div>
+      <p className="status">{liveMode}</p>
+      <p className="status">{status}</p>
+    </section>
   );
 }
 
@@ -847,7 +1025,7 @@ function AddTokenPage({ customToken, setCustomToken, chain, registry, loadLocalR
       <h2>Add Token</h2>
       <p>{chain.name === "Main" ? "Step 1 pick a chain, Step 2 pick the blockchain/network, Step 3 pick a token or import a contract." : `This ${chain.name} page only adds ${chain.name} assets.`}</p>
       <div className="form-grid">
-        <button className="primary" onClick={loadLocalRegistry}><Plus size={18} /> Load local top 3000</button>
+        <button className="primary" onClick={loadLocalRegistry}><Plus size={18} /> Refresh local registry</button>
         <select value={chain.name} disabled>
           <option>{chain.name}</option>
         </select>
@@ -956,7 +1134,67 @@ function NotificationsPage() {
 }
 
 function NewsPage({ coins, loadCoins, status }) {
-  return <section className="page-card"><h2>Markets</h2><p>CoinGecko market feed for top coins.</p><button className="primary" onClick={loadCoins}><Globe2 size={18} /> Load Top 3000</button><p className="status">{status}</p><div className="market-strip">{(coins.length ? coins.slice(0, 9) : topAssets).map((coin) => <article key={`${coin.symbol}-${coin.name}`}><strong>{coin.symbol}</strong><span>{coin.price ? `$${Number(coin.price).toLocaleString()}` : coin.name}</span></article>)}</div></section>;
+  return <section className="page-card"><h2>Markets</h2><p>Offline market registry for top assets bundled with the app.</p><button className="primary" onClick={loadCoins}><Globe2 size={18} /> Refresh Local Registry</button>{status && <p className="status">{status}</p>}<div className="market-strip">{(coins.length ? coins.slice(0, 9) : topAssets).map((coin) => <article key={`${coin.symbol}-${coin.name}`}><strong>{coin.symbol}</strong><span>{coin.price ? `$${Number(coin.price).toLocaleString()}` : coin.name}</span></article>)}</div></section>;
+}
+
+function chainByName(name) {
+  return chains.find((item) => item.name === name) ?? { name, symbol: "", kind: "Adapter", rpc: "indexer-required", explorer: "", native: "" };
+}
+
+function getTokenNetworks(token, currentChain) {
+  if (!token) return [currentChain.name];
+  const networks = [];
+  if (String(token.symbol).toUpperCase() === "IFX") networks.push("Solana");
+  if (currentChain.name !== "Main") networks.push(currentChain.name);
+  if (Array.isArray(token.chains)) networks.push(...token.chains);
+  if (token.network && !["Multi-chain", "Auto-detect"].includes(token.network)) networks.push(token.network);
+  if (isNativeAsset(token, currentChain)) networks.push(currentChain.name);
+  const usable = networks.filter(Boolean);
+  return [...new Set(usable.length ? usable : [currentChain.name])];
+}
+
+function contractForChain(token, chainName) {
+  if (!token) return "";
+  if (String(token.symbol).toUpperCase() === "IFX" && chainName === "Solana") return IFX_MINT;
+  if (token.mint && chainName === "Solana") return token.mint;
+  if (token.contract && (!token.network || token.network === chainName || token.network === "Multi-chain")) return token.contract;
+  return (token.contracts ?? []).find((contract) => contract.chain === chainName)?.address ?? "";
+}
+
+function isNativeAsset(token, chain) {
+  const symbol = String(token?.symbol ?? "").toUpperCase();
+  const native = String(chain?.native ?? "").toUpperCase();
+  if (!symbol || !native) return false;
+  if (symbol === native) return true;
+  return chain?.name === "Ethereum" && symbol === "ETH";
+}
+
+function liveSupportForAsset({ selectedChain, token, contract, native }) {
+  if (selectedChain.kind === "SVM" && (native || contract)) return "Live Solana send, receive, balance, and native SOL staking are enabled.";
+  if (selectedChain.kind === "EVM" && isSupportedEvmChain(selectedChain) && (native || contract)) return "Live EVM send, receive, and balance are enabled for this supported network.";
+  if (!contract && !native) return `${token.symbol} is tracked here, but this network has no bundled contract/mint for live sending.`;
+  return `${selectedChain.name} requires a native signer/indexer adapter before live transactions can be broadcast.`;
+}
+
+function stakingStatusFor(token, selectedChain) {
+  const symbol = String(token?.symbol ?? "").toUpperCase();
+  if (selectedChain.name === "Ethereum" && symbol === "ETH") return "ETH staking requires a provider or validator integration before InfinityX can broadcast a real stake transaction.";
+  if (["POL", "BNB", "AVAX", "FTM"].includes(symbol)) return `${symbol} staking needs the chain-specific validator/provider adapter before live staking.`;
+  return `${symbol} has no verified staking adapter in this build. Send and receive still work where the chain signer is supported.`;
+}
+
+function formatBalance(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value ?? "--");
+  if (number === 0) return "0";
+  if (Math.abs(number) < 0.000001) return number.toExponential(4);
+  return number.toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+
+function formatTokenRowMeta(token) {
+  if (token.priceUsd || token.price) return `$${Number(token.priceUsd ?? token.price).toLocaleString()}`;
+  if (Array.isArray(token.chains) && token.chains.length) return token.chains.slice(0, 2).join(", ");
+  return token.action ?? "Open";
 }
 
 function registryForChain(registry, chainName) {

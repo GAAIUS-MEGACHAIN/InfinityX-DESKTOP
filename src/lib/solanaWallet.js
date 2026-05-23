@@ -42,6 +42,40 @@ export async function getSolanaWalletState({ password, rpcUrl = SOLANA_MAINNET_R
   };
 }
 
+export async function getSplTokenBalance({
+  password,
+  mint = IFX_MINT,
+  rpcUrl = SOLANA_MAINNET_RPC,
+  accountIndex = 0
+}) {
+  const { keypair } = await unlockSolanaSigner({ password, accountIndex });
+  const connection = await getHealthySolanaConnection(rpcUrl);
+  const mintPubkey = parseSolanaAddress(mint);
+  const mintInfo = await getMint(connection, mintPubkey, "confirmed");
+  const ownerAta = await getAssociatedTokenAddress(mintPubkey, keypair.publicKey);
+  try {
+    const account = await getAccount(connection, ownerAta, "confirmed");
+    return {
+      address: keypair.publicKey.toBase58(),
+      tokenAccount: ownerAta.toBase58(),
+      raw: account.amount.toString(),
+      decimals: mintInfo.decimals,
+      uiAmount: formatTokenUnits(account.amount, mintInfo.decimals)
+    };
+  } catch (error) {
+    if (String(error?.message ?? "").includes("TokenAccountNotFound") || String(error?.name ?? "").includes("TokenAccountNotFound")) {
+      return {
+        address: keypair.publicKey.toBase58(),
+        tokenAccount: ownerAta.toBase58(),
+        raw: "0",
+        decimals: mintInfo.decimals,
+        uiAmount: "0"
+      };
+    }
+    throw error;
+  }
+}
+
 export async function sendSol({ password, to, amountSol, rpcUrl = SOLANA_MAINNET_RPC, accountIndex = 0 }) {
   const { keypair } = await unlockSolanaSigner({ password, accountIndex });
   const connection = await getHealthySolanaConnection(rpcUrl);
@@ -239,6 +273,16 @@ export function parseTokenUnits(value, decimals) {
   const [whole, fraction = ""] = text.split(".");
   if (fraction.length > decimals) throw new Error(`Token supports only ${decimals} decimals.`);
   return BigInt(whole) * (10n ** BigInt(decimals)) + BigInt(fraction.padEnd(decimals, "0") || "0");
+}
+
+function formatTokenUnits(value, decimals) {
+  const raw = BigInt(value);
+  const base = 10n ** BigInt(decimals);
+  const whole = raw / base;
+  const fraction = raw % base;
+  if (fraction === 0n) return whole.toString();
+  const fractionText = fraction.toString().padStart(decimals, "0").replace(/0+$/, "");
+  return `${whole}.${fractionText}`;
 }
 
 async function unlockSolanaSigner({ password, accountIndex }) {
