@@ -1,0 +1,17 @@
+{
+  "name": "InfinityX",
+  "symbol": "IFX",
+  "description": "InfinityX ecosystem token for the InfinityX Wallet universal Web3 super app.",
+  "image": "https://raw.githubusercontent.com/GAAIUS-MEGACHAIN/InfinityX/main/public/token/logo.png",
+  "external_url": "https://github.com/GAAIUS-MEGACHAIN/InfinityX",
+  "attributes": [
+    {
+      "trait_type": "Ecosystem",
+      "value": "InfinityX Wallet"
+    },
+    {
+      "trait_type": "Network",
+      "value": "Solana"
+    }
+  ]
+}
