@@ -32,11 +32,11 @@ import {
   Zap
 } from "lucide-react";
 import "./styles.css";
-import { createMnemonic, deriveSolanaAccount, saveVault, validateSeedPhrase } from "./lib/vault.js";
+import { createMnemonic, deriveSolanaAccount, hasVault, saveVault, unlockVault, validateSeedPhrase } from "./lib/vault.js";
 import { extraChains } from "./data/extraChains.js";
 import { initializeGoogleSignIn } from "./lib/googleAuth.js";
 import { getLifiBridgeQuote } from "./lib/bridge.js";
-import { deriveEvmAddress, getEvmWalletState, isSupportedEvmChain, sendEvmTransactionRequest } from "./lib/evmWallet.js";
+import { deriveEvmAddress, isSupportedEvmChain, sendEvmTransactionRequest } from "./lib/evmWallet.js";
 import { connectInjectedWallet, walletAvailability } from "./lib/externalWallets.js";
 import { executeJupiterSwap, getJupiterQuote } from "./lib/jupiter.js";
 import { getNativeSecurityStatus, requireNativeSigningGate } from "./lib/nativeSecurity.js";
@@ -98,6 +98,26 @@ const services = [
   { name: "Portfolio", fee: "Free", ifx: "Free", icon: Wallet }
 ];
 
+const PROTECTED_PAGES = new Set([
+  "accounts",
+  "add",
+  "bridge",
+  "buy",
+  "connect",
+  "create",
+  "dapps",
+  "dex",
+  "import",
+  "metaverse",
+  "nfts",
+  "receive",
+  "send",
+  "services",
+  "staking",
+  "token",
+  "walletconnect"
+]);
+
 function App() {
   const [page, setPage] = useState("wallet");
   const [chain, setChain] = useState(chains[0]);
@@ -106,12 +126,15 @@ function App() {
   const [coins, setCoins] = useState([]);
   const [coinStatus, setCoinStatus] = useState("");
   const [dexStatus, setDexStatus] = useState("Ready for live Jupiter quotes");
-  const [recoveryStatus, setRecoveryStatus] = useState("Choose a recovery method");
   const [customToken, setCustomToken] = useState({ contract: "", symbol: "", network: "Main" });
   const [selectedToken, setSelectedToken] = useState(null);
   const [registry, setRegistry] = useState([]);
   const [vaultStatus, setVaultStatus] = useState("No encrypted vault created yet");
   const [generatedPhrase, setGeneratedPhrase] = useState("");
+  const [vaultAvailable, setVaultAvailable] = useState(() => hasVault());
+  const [sessionUnlocked, setSessionUnlocked] = useState(false);
+  const [authReturnPage, setAuthReturnPage] = useState("wallet");
+  const [authStatus, setAuthStatus] = useState(() => hasVault() ? "Log in to use InfinityX services." : "Create or import a non-custodial wallet to use InfinityX services.");
   const [markets, setMarkets] = useState(null);
   const [dapps, setDapps] = useState([]);
   const [nfts, setNfts] = useState([]);
@@ -152,7 +175,17 @@ function App() {
 
   function openToken(token) {
     setSelectedToken(token);
-    setPage("token");
+    navigate("token");
+  }
+
+  function navigate(target) {
+    if (PROTECTED_PAGES.has(target) && !sessionUnlocked) {
+      setAuthReturnPage(target);
+      setAuthStatus(vaultAvailable ? "Log in to continue." : "Create or import a wallet to continue.");
+      setPage("auth");
+      return;
+    }
+    setPage(target);
   }
 
   async function quoteDex() {
@@ -165,32 +198,22 @@ function App() {
     }
   }
 
-  async function setupPasskey() {
-    if (!window.PublicKeyCredential) {
-      setRecoveryStatus("Passkeys are not supported on this device/browser");
-      return;
-    }
-    const native = await getNativeSecurityStatus();
-    setRecoveryStatus(native.native ? `Native secure gate ready. Biometric available: ${native.biometricAvailable ? "yes" : "no"}. Hardware-backed key: ${native.hardwareBackedKey ? "yes" : "unknown"}.` : "Passkey support detected in browser. Android uses native biometric/keystore gate in the APK.");
-  }
-
-  function copyMint() {
-    navigator.clipboard?.writeText(IFX_MINT);
-  }
-
   function renderPage() {
+    if (page === "auth" || (PROTECTED_PAGES.has(page) && !sessionUnlocked)) {
+      return <AuthPage authReturnPage={authReturnPage} authStatus={authStatus} setAuthStatus={setAuthStatus} setPage={setPage} navigate={navigate} setSessionUnlocked={setSessionUnlocked} setVaultAvailable={setVaultAvailable} setVaultStatus={setVaultStatus} />;
+    }
     if (page === "dex") return <DexPage status={dexStatus} quoteDex={quoteDex} />;
     if (page === "send") return <SendPage chain={chain} registry={registry} />;
     if (page === "receive") return <ReceivePage chain={chain} registry={registry} />;
     if (page === "buy") return <BuyPage markets={markets} setMarkets={setMarkets} />;
     if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} registry={registry} loadLocalRegistry={loadLocalRegistry} />;
     if (page === "create") return <CreateTokenPage />;
-    if (page === "connect") return <ConnectPage setPage={setPage} />;
-    if (page === "import") return <ImportPage setPage={setPage} />;
-    if (page === "profile") return <ProfilePage setPage={setPage} />;
+    if (page === "connect") return <ConnectPage setPage={navigate} />;
+    if (page === "import") return <ImportPage setPage={navigate} />;
+    if (page === "profile") return <ProfilePage setPage={navigate} sessionUnlocked={sessionUnlocked} setSessionUnlocked={setSessionUnlocked} setAuthReturnPage={setAuthReturnPage} />;
     if (page === "notifications") return <NotificationsPage />;
-    if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} />;
-    if (page === "services") return <ServicesPage setPage={setPage} />;
+    if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} setSessionUnlocked={setSessionUnlocked} setVaultAvailable={setVaultAvailable} />;
+    if (page === "services") return <ServicesPage setPage={navigate} />;
     if (page === "bridge") return <BridgePage />;
     if (page === "staking") return <StakingPage />;
     if (page === "dapps") return <RegistryPage title="dApps" path="/registry/dapps.json" field="dapps" items={dapps} setItems={setDapps} />;
@@ -199,15 +222,15 @@ function App() {
     if (page === "walletconnect") return <WalletConnectPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
-    if (page === "token") return <TokenDetailPage token={selectedToken} chain={chain} setPage={setPage} />;
-    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} openToken={openToken} />;
+    if (page === "token") return <TokenDetailPage token={selectedToken} chain={chain} setPage={navigate} />;
+    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} setPage={navigate} coinStatus={coinStatus} openToken={openToken} sessionUnlocked={sessionUnlocked} vaultAvailable={vaultAvailable} />;
   }
 
   return (
     <main className="phone-shell">
       <section className="wallet-app">
         <header className="app-top">
-          <button className="icon-button account-button" aria-label="Accounts" onClick={() => setPage("accounts")}><WalletCards size={20} /></button>
+          <button className="icon-button account-button" aria-label="Accounts" onClick={() => navigate("accounts")}><WalletCards size={20} /></button>
           <button className="network-pill" onClick={() => setChainOpen(!chainOpen)}>{chain.name} <ChevronDown size={16} /></button>
           <div className="top-right">
             <button className="icon-button" aria-label="Profile" onClick={() => setPage("profile")}><UserCircle size={20} /></button>
@@ -229,45 +252,163 @@ function App() {
 
         <footer className="bottom-nav">
           <button className={page === "wallet" ? "active" : ""} onClick={() => setPage("wallet")}><Wallet size={20} /><span>Wallet</span></button>
-          <button className={page === "dex" ? "active" : ""} onClick={() => setPage("dex")}><ArrowDownUp size={20} /><span>DEX</span></button>
-          <button className={page === "dapps" ? "active" : ""} onClick={() => setPage("dapps")}><Globe2 size={20} /><span>dApps</span></button>
-          <button className={page === "nfts" ? "active" : ""} onClick={() => setPage("nfts")}><Compass size={20} /><span>NFTs</span></button>
-          <button className={page === "staking" ? "active" : ""} onClick={() => setPage("staking")}><BadgeDollarSign size={20} /><span>Stake</span></button>
-          <button className={page === "services" ? "active" : ""} onClick={() => setPage("services")}><BadgeDollarSign size={20} /><span>Services</span></button>
+          <button className={page === "dex" ? "active" : ""} onClick={() => navigate("dex")}><ArrowDownUp size={20} /><span>DEX</span></button>
+          <button className={page === "dapps" ? "active" : ""} onClick={() => navigate("dapps")}><Globe2 size={20} /><span>dApps</span></button>
+          <button className={page === "nfts" ? "active" : ""} onClick={() => navigate("nfts")}><Compass size={20} /><span>NFTs</span></button>
+          <button className={page === "staking" ? "active" : ""} onClick={() => navigate("staking")}><BadgeDollarSign size={20} /><span>Stake</span></button>
+          <button className={page === "services" ? "active" : ""} onClick={() => navigate("services")}><BadgeDollarSign size={20} /><span>Services</span></button>
         </footer>
       </section>
     </main>
   );
 }
 
-function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage, setupPasskey, recoveryStatus, setRecoveryStatus, coinStatus, openToken }) {
-  const liveChain = chain.name === "Main" ? chains.find((item) => item.name === "Solana") : chain;
+function AuthPage({ authReturnPage, authStatus, setAuthStatus, setPage, setSessionUnlocked, setVaultAvailable, setVaultStatus }) {
+  const [tab, setTab] = useState(() => hasVault() ? "login" : "register");
   const [password, setPassword] = useState("");
-  const [portfolio, setPortfolio] = useState(null);
-  const [balanceStatus, setBalanceStatus] = useState("Unlock to read live on-chain balance.");
+  const [importPhrase, setImportPhrase] = useState("");
+  const [generatedPhrase, setGeneratedPhrase] = useState("");
+  const [seedStrength, setSeedStrength] = useState(128);
+  const [securityStatus, setSecurityStatus] = useState("Android APK signing uses the device biometric/keystore gate before live transactions.");
 
-  async function unlockPortfolio() {
-    setBalanceStatus(`Reading ${liveChain.name} balance...`);
+  function finishAuth(message) {
+    setSessionUnlocked(true);
+    setVaultAvailable(true);
+    setVaultStatus(message);
+    setAuthStatus(message);
+    setPage(authReturnPage || "wallet");
+  }
+
+  async function login() {
+    if (password.length < 1) {
+      setAuthStatus("Enter the wallet password for this device.");
+      return;
+    }
     try {
-      if (liveChain.kind === "SVM") {
-        const state = await getSolanaWalletState({ password, rpcUrl: liveChain.rpc });
-        setPortfolio({ balance: state.sol, symbol: liveChain.native, address: state.address });
-        setBalanceStatus("Live Solana balance loaded.");
-        return;
-      }
-      if (liveChain.kind === "EVM" && isSupportedEvmChain(liveChain)) {
-        const state = await getEvmWalletState({ password, chain: liveChain });
-        setPortfolio({ balance: state.native, symbol: liveChain.native, address: state.address });
-        setBalanceStatus(`Live ${liveChain.name} balance loaded.`);
-        return;
-      }
-      setPortfolio(null);
-      setBalanceStatus(`${liveChain.name} needs its native signer/indexer adapter before live balances can be read here.`);
+      const vault = await unlockVault(password);
+      const address = vault.accounts?.[0]?.address ?? "local account";
+      await syncBackendProfile("login", address);
+      finishAuth(`Logged in. Active account: ${shortAddress(address)}`);
     } catch (error) {
-      setPortfolio(null);
-      setBalanceStatus(error.message);
+      setAuthStatus(error.message);
     }
   }
+
+  function generatePhrase() {
+    const phrase = createMnemonic(seedStrength);
+    setGeneratedPhrase(phrase);
+    setAuthStatus(`${seedStrength === 256 ? "24" : "12"}-word seed phrase created. Store it offline before encrypting.`);
+  }
+
+  async function register() {
+    const phrase = generatedPhrase || createMnemonic(seedStrength);
+    if (password.length < 8) {
+      setAuthStatus("Use a wallet password with at least 8 characters.");
+      if (!generatedPhrase) setGeneratedPhrase(phrase);
+      return;
+    }
+    try {
+      const account = deriveSolanaAccount(phrase, 0);
+      await saveVault({ kind: "mnemonic", phrase, accounts: [account], createdAt: new Date().toISOString() }, password);
+      await syncBackendProfile("register", account.address);
+      setGeneratedPhrase(phrase);
+      finishAuth(`Non-custodial account created: ${shortAddress(account.address)}`);
+    } catch (error) {
+      setAuthStatus(error.message);
+    }
+  }
+
+  async function importWallet() {
+    const phrase = importPhrase.trim().toLowerCase();
+    if (!validateSeedPhrase(phrase)) {
+      setAuthStatus("Invalid BIP39 seed phrase.");
+      return;
+    }
+    if (password.length < 8) {
+      setAuthStatus("Use a wallet password with at least 8 characters.");
+      return;
+    }
+    try {
+      const account = deriveSolanaAccount(phrase, 0);
+      await saveVault({ kind: "mnemonic", phrase, accounts: [account], importedAt: new Date().toISOString() }, password);
+      await syncBackendProfile("import", account.address);
+      finishAuth(`Imported non-custodial account: ${shortAddress(account.address)}`);
+    } catch (error) {
+      setAuthStatus(error.message);
+    }
+  }
+
+  async function checkBiometrics() {
+    try {
+      if (!window.PublicKeyCredential) {
+        setSecurityStatus("Passkeys are not available in this browser. The Android APK uses the native biometric/keystore plugin.");
+        return;
+      }
+      const native = await getNativeSecurityStatus();
+      if (native.native) {
+        const gate = await requireNativeSigningGate("Enable InfinityX biometric signing gate");
+        setSecurityStatus(`Native biometric gate ready. Biometric: ${native.biometricAvailable ? "yes" : "no"}. Hardware key: ${native.hardwareBackedKey ? "yes" : "unknown"}. ${gate.native ? "APK gate tested." : ""}`);
+        return;
+      }
+      setSecurityStatus("Passkey APIs are available here. Android builds use native biometric confirmation before signing.");
+    } catch (error) {
+      setSecurityStatus(error.message);
+    }
+  }
+
+  const showLogin = tab === "login";
+  const showRegister = tab === "register";
+  const showImport = tab === "import";
+
+  return (
+    <section className="page-card auth-card">
+      <h2>InfinityX Account</h2>
+      <p>Use the app first; create or unlock a local non-custodial wallet only when an action needs signing.</p>
+      <div className="auth-tabs" role="tablist" aria-label="Account access">
+        <button className={showLogin ? "active" : ""} onClick={() => setTab("login")}>Log in</button>
+        <button className={showRegister ? "active" : ""} onClick={() => setTab("register")}>Register</button>
+        <button className={showImport ? "active" : ""} onClick={() => setTab("import")}>Import</button>
+      </div>
+      <div className="form-grid vault-form">
+        {showLogin && (
+          <>
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Wallet password" />
+            <button className="primary" onClick={login}><LockKeyhole size={18} /> Unlock account</button>
+          </>
+        )}
+        {showRegister && (
+          <>
+            <select value={seedStrength} onChange={(event) => setSeedStrength(Number(event.target.value))}>
+              <option value={128}>12-word seed phrase</option>
+              <option value={256}>24-word seed phrase</option>
+            </select>
+            <button className="primary" onClick={generatePhrase}><Plus size={18} /> Create seed phrase</button>
+            {generatedPhrase && <textarea className="seed-box" readOnly value={generatedPhrase} />}
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Create wallet password" />
+            <button className="primary" onClick={register}><ShieldCheck size={18} /> Register encrypted wallet</button>
+          </>
+        )}
+        {showImport && (
+          <>
+            <textarea value={importPhrase} onChange={(event) => setImportPhrase(event.target.value)} placeholder="Paste existing seed phrase" />
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Create wallet password" />
+            <button className="primary" onClick={importWallet}><Import size={18} /> Import encrypted wallet</button>
+          </>
+        )}
+      </div>
+      <div className="security-strip">
+        <button onClick={checkBiometrics}><Fingerprint size={18} /> Check biometrics/passkeys</button>
+        <button onClick={() => setSecurityStatus("Social recovery and MPC are kept out of the home screen. Recovery intents are backend-coordinated and must be completed through audited guardian services before funds move.")}><Users size={18} /> Recovery status</button>
+      </div>
+      <p className="status">{authStatus}</p>
+      <p className="status">{securityStatus}</p>
+      <button className="secondary" onClick={() => setPage("wallet")}>Back to wallet</button>
+    </section>
+  );
+}
+
+function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage, coinStatus, openToken, sessionUnlocked, vaultAvailable }) {
+  const liveChain = chain.name === "Main" ? chains.find((item) => item.name === "Solana") : chain;
 
   return (
     <>
@@ -279,14 +420,9 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage,
         </div>
         <div className="balance">
           <span>Live Portfolio Balance</span>
-          <h1>{portfolio ? `${formatBalance(portfolio.balance)} ${portfolio.symbol}` : "--"}</h1>
-          <p>{portfolio?.address ?? `${liveChain.name} assets and services`}</p>
+          <h1>{sessionUnlocked ? "--" : "Welcome"}</h1>
+          <p>{sessionUnlocked ? `${liveChain.name} account ready for live balances and transactions` : `${vaultAvailable ? "Log in" : "Register"} when you create accounts or use services`}</p>
         </div>
-        <div className="balance-unlock">
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
-          <button onClick={unlockPortfolio}>Unlock</button>
-        </div>
-        <p className="balance-note">{balanceStatus}</p>
         <div className="actions">
           <button onClick={() => setPage("send")}><Send size={20} /><span>Send</span></button>
           <button onClick={() => setPage("receive")}><ScanLine size={20} /><span>Receive</span></button>
@@ -310,16 +446,6 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage,
             <em>{formatTokenRowMeta(token)}</em>
           </button>
         ))}
-      </section>
-      <section className="panel">
-        <div className="section-title"><KeyRound size={20} /><strong>Recovery</strong></div>
-        <div className="recovery-grid">
-          <button onClick={setupPasskey}><Fingerprint size={18} /> Passkey</button>
-          <button onClick={() => setRecoveryStatus("Biometrics require Android Keystore integration before live funds")}><ShieldCheck size={18} /> Biometrics</button>
-          <button onClick={() => setRecoveryStatus("MPC requires audited distributed key shares and backend coordination")}><LockKeyhole size={18} /> MPC</button>
-          <button onClick={() => setRecoveryStatus("Social recovery requires guardian contracts or audited recovery service")}><UserRound size={18} /> Social</button>
-        </div>
-        <p className="status">{recoveryStatus}</p>
       </section>
     </>
   );
@@ -1056,7 +1182,7 @@ function AddTokenPage({ customToken, setCustomToken, chain, registry, loadLocalR
   );
 }
 
-function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGeneratedPhrase }) {
+function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGeneratedPhrase, setSessionUnlocked, setVaultAvailable }) {
   const [password, setPassword] = useState("");
   const [importPhrase, setImportPhrase] = useState("");
   const [seedStrength, setSeedStrength] = useState(128);
@@ -1073,6 +1199,9 @@ function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGenerat
     }
     const account = deriveSolanaAccount(generatedPhrase, 0);
     await saveVault({ kind: "mnemonic", phrase: generatedPhrase, accounts: [account], createdAt: new Date().toISOString() }, password);
+    setSessionUnlocked?.(true);
+    setVaultAvailable?.(true);
+    await syncBackendProfile("create-account", account.address);
     setVaultStatus(`Encrypted vault saved. First Solana account: ${account.address}`);
   }
 
@@ -1088,6 +1217,9 @@ function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGenerat
     }
     const account = deriveSolanaAccount(phrase, 0);
     await saveVault({ kind: "mnemonic", phrase, accounts: [account], importedAt: new Date().toISOString() }, password);
+    setSessionUnlocked?.(true);
+    setVaultAvailable?.(true);
+    await syncBackendProfile("import-account", account.address);
     setVaultStatus(`Imported and encrypted. First Solana account: ${account.address}`);
   }
 
@@ -1115,7 +1247,7 @@ function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGenerat
   );
 }
 
-function ProfilePage({ setPage }) {
+function ProfilePage({ setPage, sessionUnlocked, setSessionUnlocked, setAuthReturnPage }) {
   const googleButton = useRef(null);
   const [googleStatus, setGoogleStatus] = useState("Google sign-in is optional and never unlocks seed phrases.");
   const items = [["Profile", UserRound], ["Settings", Settings], ["API", Globe2], ["Contacts", Users], ["Resources", Compass], ["Support", BellRing], ["Apply token listing", Plus], ["Seed phrase vault", KeyRound]];
@@ -1135,8 +1267,13 @@ function ProfilePage({ setPage }) {
         <div ref={googleButton} className="google-button" />
         <p className="status">{googleStatus}</p>
       </div>
-      <div className="profile-list">{items.map(([label, Icon]) => <button key={label}><Icon size={18} /> {label}</button>)}</div>
-      <button className="primary" onClick={() => setPage("wallet")}>Log out</button>
+      <div className="profile-list">{items.map(([label, Icon]) => <button key={label} onClick={() => {
+        if (label === "Seed phrase vault") {
+          setAuthReturnPage?.("accounts");
+          setPage("accounts");
+        }
+      }}><Icon size={18} /> {label}</button>)}</div>
+      <button className="primary" onClick={() => { setSessionUnlocked?.(false); setPage("wallet"); }}>{sessionUnlocked ? "Lock wallet" : "Back to wallet"}</button>
     </section>
   );
 }
@@ -1178,6 +1315,29 @@ function stakingStatusFor(token, selectedChain) {
   if (selectedChain.name === "Ethereum" && symbol === "ETH") return "ETH staking requires a provider or validator integration before InfinityX can broadcast a real stake transaction.";
   if (["POL", "BNB", "AVAX", "FTM"].includes(symbol)) return `${symbol} staking needs the chain-specific validator/provider adapter before live staking.`;
   return `${symbol} has no verified staking adapter in this build. Send and receive still work where the chain signer is supported.`;
+}
+
+function shortAddress(address) {
+  const value = String(address ?? "");
+  if (value.length <= 14) return value || "local";
+  return `${value.slice(0, 6)}...${value.slice(-6)}`;
+}
+
+async function syncBackendProfile(mode, address) {
+  try {
+    await fetch("http://127.0.0.1:8787/auth/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        mode,
+        address,
+        nonCustodial: true,
+        time: new Date().toISOString()
+      })
+    });
+  } catch {
+    // The wallet remains usable offline; backend sync never gates custody.
+  }
 }
 
 function formatBalance(value) {
