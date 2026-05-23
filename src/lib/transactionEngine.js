@@ -1,6 +1,9 @@
 import { deriveEvmAddress, getErc20TokenBalance, getEvmWalletState, isSupportedEvmChain, sendErc20Token, sendEvmNative } from "./evmWallet.js";
 import { getSolanaWalletState, getSplTokenBalance, IFX_MINT, sendSol, sendSplToken } from "./solanaWallet.js";
 
+const SUPPORTED_UTXO_CHAINS = new Set(["Bitcoin", "Litecoin", "Dogecoin", "Dash"]);
+const SUPPORTED_COSMOS_CHAINS = new Set(["Cosmos Hub", "Osmosis", "Celestia", "Stargaze", "Juno", "Akash", "Kujira", "Secret Network", "Stride", "Evmos", "Coreum"]);
+
 export function buildNativeAsset(chain) {
   return {
     id: `native:${chain.name}`,
@@ -82,6 +85,37 @@ export function getAssetCapability({ chain, token }) {
         : `${token.symbol} has no ${chain.name} contract in the bundled registry. Import the contract to send it.`
     };
   }
+  if ((chain.kind === "UTXO" || chain.kind === "UTXO/EVM") && SUPPORTED_UTXO_CHAINS.has(chain.name)) {
+    const canUse = native;
+    const canSend = canUse;
+    return {
+      adapter: "utxo",
+      native,
+      contract,
+      canReceive: canUse,
+      canBalance: canUse,
+      canSend,
+      canStake: false,
+      reason: canUse
+        ? `Live ${chain.name} native receive, balance, and UTXO send are enabled through the UTXO adapter.`
+        : `${chain.name} supports native UTXO coins only in this adapter.`
+    };
+  }
+  if ((chain.kind === "Cosmos" || chain.kind === "Cosmos/EVM") && SUPPORTED_COSMOS_CHAINS.has(chain.name)) {
+    const canUse = native;
+    return {
+      adapter: "cosmos",
+      native,
+      contract,
+      canReceive: canUse,
+      canBalance: canUse,
+      canSend: canUse,
+      canStake: false,
+      reason: canUse
+        ? `Live ${chain.name} native receive, balance, and send are enabled through the Cosmos adapter.`
+        : `${chain.name} supports native Cosmos assets only in this adapter.`
+    };
+  }
   return {
     adapter: "unsupported",
     native,
@@ -142,6 +176,30 @@ export async function getAssetReceiveState({ password, chain, token }) {
       status: "Live ERC-20 token balance loaded."
     };
   }
+  if (capability.adapter === "utxo") {
+    const { getUtxoWalletState } = await import("./utxoWallet.js");
+    const state = await getUtxoWalletState({ password, chain });
+    return {
+      adapter: capability.adapter,
+      address: state.address,
+      balance: state.balance,
+      symbol: state.symbol,
+      contract: "",
+      status: `Live ${chain.name} UTXO balance loaded.`
+    };
+  }
+  if (capability.adapter === "cosmos") {
+    const { getCosmosWalletState } = await import("./cosmosWallet.js");
+    const state = await getCosmosWalletState({ password, chain });
+    return {
+      adapter: capability.adapter,
+      address: state.address,
+      balance: state.balance,
+      symbol: state.symbol,
+      contract: state.denom,
+      status: `Live ${chain.name} Cosmos balance loaded.`
+    };
+  }
   throw new Error(capability.reason);
 }
 
@@ -152,6 +210,16 @@ export async function getReceiveAddressOnly({ password, chain }) {
   }
   if (chain.kind === "EVM" && isSupportedEvmChain(chain)) {
     return deriveEvmAddress({ password });
+  }
+  if ((chain.kind === "UTXO" || chain.kind === "UTXO/EVM") && SUPPORTED_UTXO_CHAINS.has(chain.name)) {
+    const { getUtxoWalletState } = await import("./utxoWallet.js");
+    const state = await getUtxoWalletState({ password, chain });
+    return state.address;
+  }
+  if ((chain.kind === "Cosmos" || chain.kind === "Cosmos/EVM") && SUPPORTED_COSMOS_CHAINS.has(chain.name)) {
+    const { getCosmosWalletState } = await import("./cosmosWallet.js");
+    const state = await getCosmosWalletState({ password, chain });
+    return state.address;
   }
   throw new Error(`${chain.name} does not have a receive-address adapter yet.`);
 }
@@ -169,6 +237,16 @@ export async function sendUniversalAsset({ password, chain, token, recipient, am
     const result = capability.native
       ? await sendEvmNative({ password, chain, to: recipient, amount })
       : await sendErc20Token({ password, chain, tokenAddress: capability.contract, to: recipient, amount, decimals: token.decimals });
+    return { ...result, network: chain.name, adapter: capability.adapter };
+  }
+  if (capability.adapter === "utxo") {
+    const { sendUtxoNative } = await import("./utxoWallet.js");
+    const result = await sendUtxoNative({ password, chain, to: recipient, amount });
+    return { ...result, network: chain.name, adapter: capability.adapter };
+  }
+  if (capability.adapter === "cosmos") {
+    const { sendCosmosNative } = await import("./cosmosWallet.js");
+    const result = await sendCosmosNative({ password, chain, to: recipient, amount });
     return { ...result, network: chain.name, adapter: capability.adapter };
   }
   throw new Error(capability.reason);
