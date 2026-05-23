@@ -99,6 +99,9 @@ function App() {
   const [vaultStatus, setVaultStatus] = useState("No encrypted vault created yet");
   const [generatedPhrase, setGeneratedPhrase] = useState("");
   const [markets, setMarkets] = useState(null);
+  const [dapps, setDapps] = useState([]);
+  const [nfts, setNfts] = useState([]);
+  const [metaverse, setMetaverse] = useState([]);
 
   const filteredCoins = useMemo(() => {
     const registrySource = registryForChain(registry, chain.name);
@@ -181,7 +184,10 @@ function App() {
     if (page === "profile") return <ProfilePage setPage={setPage} />;
     if (page === "notifications") return <NotificationsPage />;
     if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} />;
-    if (page === "services") return <ServicesPage />;
+    if (page === "services") return <ServicesPage setPage={setPage} />;
+    if (page === "dapps") return <RegistryPage title="dApps" path="/registry/dapps.json" field="dapps" items={dapps} setItems={setDapps} />;
+    if (page === "nfts") return <RegistryPage title="NFTs" path="/registry/nfts.json" field="collections" items={nfts} setItems={setNfts} />;
+    if (page === "metaverse") return <RegistryPage title="Metaverse API" path="/registry/metaverse.json" field="worlds" items={metaverse} setItems={setMetaverse} />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
     return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} copyMint={copyMint} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} />;
@@ -273,12 +279,50 @@ function DexPage({ status, quoteDex }) {
   return <section className="page-card"><h2>InfinityX DEX</h2><p>Live quote routing uses Jupiter on Solana. Signed execution is handled locally by the wallet.</p><div className="swap-box"><label>From</label><strong>0.1 SOL</strong></div><div className="swap-box"><label>To</label><strong>USDC</strong></div><button className="primary" onClick={quoteDex}><Zap size={18} /> Get Live Quote</button><p className="status">{status}</p><div className="fee-note">Service fee: {SERVICE_FEE_BPS / 100}% - IFX holders pay {IFX_DISCOUNT}% less.</div></section>;
 }
 
-function ServicesPage() {
-  return <section className="page-card"><h2>Services</h2><p>Small service fees with IFX discounts.</p><div className="service-grid">{services.map((service) => { const Icon = service.icon; return <article key={service.name}><Icon size={20} /><strong>{service.name}</strong><span>{service.fee}</span><em>IFX {service.ifx}</em></article>; })}</div></section>;
+function ServicesPage({ setPage }) {
+  const quick = [
+    { name: "dApps", page: "dapps", icon: Globe2 },
+    { name: "NFTs", page: "nfts", icon: Compass },
+    { name: "Metaverse API", page: "metaverse", icon: Layers3 }
+  ];
+  return (
+    <section className="page-card">
+      <h2>Services</h2>
+      <p>Small service fees with IFX discounts.</p>
+      <div className="service-grid">{services.map((service) => { const Icon = service.icon; return <article key={service.name}><Icon size={20} /><strong>{service.name}</strong><span>{service.fee}</span><em>IFX {service.ifx}</em></article>; })}</div>
+      <div className="profile-list service-links">{quick.map(({ name, page, icon: Icon }) => <button key={name} onClick={() => setPage(page)}><Icon size={18} /> {name}</button>)}</div>
+    </section>
+  );
 }
 
 function ChainsPage({ selected, setChain }) {
   return <section className="page-card"><h2>{selected.name}</h2><p>{selected.kind} network - Native asset {selected.native}</p><div className="chain-detail"><span>RPC</span><strong>{selected.rpc}</strong><span>Explorer</span><strong>{selected.explorer}</strong></div><div className="chain-list-page">{chains.map((chain) => <button key={chain.name} onClick={() => setChain(chain)}>{chain.name}<span>{chain.kind}</span></button>)}</div></section>;
+}
+
+function RegistryPage({ title, path, field, items, setItems }) {
+  async function load() {
+    const response = await fetch(path);
+    if (response.ok) {
+      const payload = await response.json();
+      setItems(payload[field] ?? []);
+    }
+  }
+  return (
+    <section className="page-card">
+      <h2>{title}</h2>
+      <p>Local registry with API-ready entries. Fees apply to routing, marketplace, or listing services where applicable.</p>
+      <button className="primary" onClick={load}><Plus size={18} /> Load {title}</button>
+      <div className="registry-list">
+        {items.map((item) => (
+          <article key={item.name}>
+            <strong>{item.name}</strong>
+            <span>{item.category ?? item.chain ?? item.status}</span>
+            <em>{Array.isArray(item.chains) ? item.chains.join(", ") : item.assetStandard ?? item.utility ?? item.url}</em>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function ActionPage({ title, icon: Icon, chain, body }) {

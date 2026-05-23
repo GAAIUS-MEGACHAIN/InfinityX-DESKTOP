@@ -1,0 +1,8 @@
+{
+  "worlds": [
+    { "name": "InfinityX World", "chain": "Main", "status": "api-design", "assetStandard": "multi-chain NFT avatar and land registry" },
+    { "name": "Decentraland", "chain": "Ethereum", "status": "external-link", "assetStandard": "LAND / wearables" },
+    { "name": "The Sandbox", "chain": "Ethereum/Polygon", "status": "external-link", "assetStandard": "LAND / assets" },
+    { "name": "Otherside", "chain": "Ethereum", "status": "external-link", "assetStandard": "NFT land" }
+  ]
+}

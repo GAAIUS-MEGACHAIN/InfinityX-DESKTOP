@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-05-23T12:14:33.156Z",
+  "releaseChannel": "github-releases",
+  "entries": [
+    {
+      "source": "public/registry/chains.json",
+      "pack": "public/update-packs/chains.json.gz",
+      "sha256": "832794fa9cd247e160362d9de24377cc19422a39794c1b96cc2bd126897365c3",
+      "bytes": 3021
+    },
+    {
+      "source": "public/registry/top-3000-tokens.json",
+      "pack": "public/update-packs/top-3000-tokens.json.gz",
+      "sha256": "6cd8e5fe237f7a15ebf0c153657c1a3500e6ce2b4f7f64bba1e619fdf0cbb1ff",
+      "bytes": 341420
+    },
+    {
+      "source": "public/registry/markets.json",
+      "pack": "public/update-packs/markets.json.gz",
+      "sha256": "93e076bc6eda78b6264dd93652ad92bcf1ef9f508fc5f553d504472e019152b3",
+      "bytes": 441
+    },
+    {
+      "source": "public/registry/dapps.json",
+      "pack": "public/update-packs/dapps.json.gz",
+      "sha256": "f90ef04f7b74d195d638ef3c56b6fddce793cdba894677258e382d1b79a989e4",
+      "bytes": 388
+    },
+    {
+      "source": "public/registry/nfts.json",
+      "pack": "public/update-packs/nfts.json.gz",
+      "sha256": "6f915088882692011717adfee562e1d2883c86db2ed698cd726941b5b9b615b1",
+      "bytes": 255
+    },
+    {
+      "source": "public/registry/metaverse.json",
+      "pack": "public/update-packs/metaverse.json.gz",
+      "sha256": "52fe2c09428304d60c7722b42685d89295cf9742d6a217117db24488ceb266c8",
+      "bytes": 234
+    }
+  ]
+}
