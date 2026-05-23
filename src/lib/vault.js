@@ -13,13 +13,17 @@ export function validateSeedPhrase(phrase) {
 }
 
 export function deriveSolanaAccount(phrase, accountIndex = 0) {
-  const seed = mnemonicToSeedSync(phrase.trim().toLowerCase(), `infinityx-${accountIndex}`);
-  const keypair = Keypair.fromSeed(seed.slice(0, 32));
+  const keypair = deriveSolanaKeypair(phrase, accountIndex);
   return {
     index: accountIndex,
     address: keypair.publicKey.toBase58(),
     publicKey: keypair.publicKey.toBase58()
   };
+}
+
+export function deriveSolanaKeypair(phrase, accountIndex = 0) {
+  const seed = mnemonicToSeedSync(phrase.trim().toLowerCase(), `infinityx-${accountIndex}`);
+  return Keypair.fromSeed(seed.slice(0, 32));
 }
 
 export async function encryptVault(payload, password) {
@@ -64,6 +68,13 @@ export function hasVault() {
 export function loadEncryptedVault() {
   const value = localStorage.getItem(VAULT_KEY);
   return value ? JSON.parse(value) : null;
+}
+
+export async function unlockVault(password) {
+  const encryptedVault = loadEncryptedVault();
+  if (!encryptedVault) throw new Error("No encrypted vault found on this device.");
+  if (!password || password.length < 8) throw new Error("Enter the vault password.");
+  return decryptVault(encryptedVault, password);
 }
 
 async function passwordKey(password, salt) {

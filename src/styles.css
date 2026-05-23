@@ -6,7 +6,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { border: 0; cursor: pointer; }
 
 .phone-shell {
@@ -27,7 +27,7 @@ button { border: 0; cursor: pointer; }
   padding: 18px 16px 96px;
 }
 
-.app-top, .account-row, .actions, .ifx-card, .search-card, .section-title, .token-row, .bottom-nav, .primary, .top-right, .action-panel, .profile-list button, .notification-list article, .account-list article {
+.app-top, .account-row, .actions, .ifx-card, .search-card, .section-title, .token-row, .bottom-nav, .primary, .secondary, .top-right, .action-panel, .profile-list button, .notification-list article, .account-list article, .check-row {
   display: flex;
   align-items: center;
 }
@@ -203,6 +203,14 @@ button { border: 0; cursor: pointer; }
   padding: 12px;
 }
 .swap-box label { display: block; color: #60756f; font-size: 12px; margin-bottom: 6px; }
+.swap-box input, .page-card > input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid #dce8e4;
+  padding: 0 12px;
+  background: #ffffff;
+}
 .primary {
   min-height: 44px;
   justify-content: center;
@@ -213,6 +221,49 @@ button { border: 0; cursor: pointer; }
   background: #13c9a5;
   color: #061412;
   font-weight: 900;
+}
+.secondary {
+  min-height: 42px;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 14px;
+  background: #eef7f4;
+  color: #10201d;
+  font-weight: 900;
+}
+.danger { background: #d3a633; }
+.check-row {
+  gap: 8px;
+  margin-top: 12px;
+  color: #10201d;
+  font-size: 13px;
+}
+.check-row input { width: 18px; height: 18px; }
+.risk-box, .receive-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.risk-box span, .receive-list article {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff7dd;
+  color: #5e4c11;
+  font-size: 12px;
+}
+.receive-list article {
+  background: #eef7f4;
+  color: #10201d;
+}
+.receive-list span, .receive-list em {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #60756f;
+  font-size: 12px;
+  font-style: normal;
 }
 .fee-note { margin-top: 10px; }
 .action-panel {

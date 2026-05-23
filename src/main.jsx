@@ -1,3 +1,4 @@
+import "./polyfills.js";
 import React, { useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -34,10 +35,17 @@ import "./styles.css";
 import { createMnemonic, deriveSolanaAccount, saveVault, validateSeedPhrase } from "./lib/vault.js";
 import { extraChains } from "./data/extraChains.js";
 import { initializeGoogleSignIn } from "./lib/googleAuth.js";
+import { getLifiBridgeQuote } from "./lib/bridge.js";
+import { deriveEvmAddress, getEvmWalletState, isSupportedEvmChain, sendErc20Token, sendEvmNative, sendEvmTransactionRequest } from "./lib/evmWallet.js";
+import { executeJupiterSwap, getJupiterQuote } from "./lib/jupiter.js";
+import { explainSendRisk } from "./lib/security.js";
+import { getSolanaWalletState, IFX_MINT, sendSol, sendSplToken } from "./lib/solanaWallet.js";
+import { initializeWalletConnect } from "./lib/walletConnect.js";
 
-const IFX_MINT = "4s9Bbk3AB223bbqAHhiCcqVg14C6m46ioixJFXMcunm1";
 const SERVICE_FEE_BPS = 15;
 const IFX_DISCOUNT = 50;
+const WSOL_MINT = "So11111111111111111111111111111111111111112";
+const USDC_SOL_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 const topAssets = [
   { symbol: "IFX", name: "InfinityX", network: "Solana", mint: IFX_MINT, action: "Open" },
@@ -153,10 +161,7 @@ function App() {
   async function quoteDex() {
     setDexStatus("Fetching live Jupiter quote...");
     try {
-      const url = "https://api.jup.ag/swap/v1/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=100000000&slippageBps=50";
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      const quote = await response.json();
+      const quote = await getJupiterQuote({ inputMint: WSOL_MINT, outputMint: USDC_SOL_MINT, amount: 100000000, slippageBps: 50 });
       setDexStatus(`0.1 SOL -> ${(Number(quote.outAmount) / 1_000_000).toFixed(4)} USDC before network fees`);
     } catch (error) {
       setDexStatus(`Quote error: ${error.message}`);
@@ -177,17 +182,19 @@ function App() {
 
   function renderPage() {
     if (page === "dex") return <DexPage status={dexStatus} quoteDex={quoteDex} />;
-    if (page === "send") return <ActionPage title="Send" icon={Send} chain={chain} body="Creates an unsigned send intent for local wallet signing." />;
-    if (page === "receive") return <ActionPage title="Receive" icon={QrCode} chain={chain} body="Shows receive QR/address after wallet creation or import." />;
+    if (page === "send") return <SendPage chain={chain} />;
+    if (page === "receive") return <ReceivePage chain={chain} />;
     if (page === "buy") return <BuyPage markets={markets} setMarkets={setMarkets} />;
     if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} registry={registry} loadLocalRegistry={loadLocalRegistry} />;
     if (page === "profile") return <ProfilePage setPage={setPage} />;
     if (page === "notifications") return <NotificationsPage />;
     if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} />;
     if (page === "services") return <ServicesPage setPage={setPage} />;
+    if (page === "bridge") return <BridgePage />;
     if (page === "dapps") return <RegistryPage title="dApps" path="/registry/dapps.json" field="dapps" items={dapps} setItems={setDapps} />;
     if (page === "nfts") return <RegistryPage title="NFTs" path="/registry/nfts.json" field="collections" items={nfts} setItems={setNfts} />;
     if (page === "metaverse") return <RegistryPage title="Metaverse API" path="/registry/metaverse.json" field="worlds" items={metaverse} setItems={setMetaverse} />;
+    if (page === "walletconnect") return <WalletConnectPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
     return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} copyMint={copyMint} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} />;
@@ -276,14 +283,64 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, copyMint
 }
 
 function DexPage({ status, quoteDex }) {
-  return <section className="page-card"><h2>InfinityX DEX</h2><p>Live quote routing uses Jupiter on Solana. Signed execution is handled locally by the wallet.</p><div className="swap-box"><label>From</label><strong>0.1 SOL</strong></div><div className="swap-box"><label>To</label><strong>USDC</strong></div><button className="primary" onClick={quoteDex}><Zap size={18} /> Get Live Quote</button><p className="status">{status}</p><div className="fee-note">Service fee: {SERVICE_FEE_BPS / 100}% - IFX holders pay {IFX_DISCOUNT}% less.</div></section>;
+  const [password, setPassword] = useState("");
+  const [amount, setAmount] = useState("0.001");
+  const [quote, setQuote] = useState(null);
+  const [executionStatus, setExecutionStatus] = useState("Quote first. Execution signs locally from your encrypted vault.");
+  const [confirmed, setConfirmed] = useState(false);
+
+  async function quoteCustomSwap() {
+    setExecutionStatus("Fetching executable Jupiter route...");
+    try {
+      const lamports = Math.round(Number(amount) * 1_000_000_000);
+      if (!Number.isFinite(lamports) || lamports <= 0) throw new Error("Enter a valid SOL amount.");
+      const nextQuote = await getJupiterQuote({ inputMint: WSOL_MINT, outputMint: USDC_SOL_MINT, amount: lamports, slippageBps: 50 });
+      setQuote(nextQuote);
+      setExecutionStatus(`${amount} SOL -> ${(Number(nextQuote.outAmount) / 1_000_000).toFixed(6)} USDC quoted`);
+    } catch (error) {
+      setExecutionStatus(error.message);
+    }
+  }
+
+  async function executeSwap() {
+    if (!quote || !confirmed) {
+      setExecutionStatus("Tick the confirmation box after reviewing the quote.");
+      return;
+    }
+    setExecutionStatus("Signing and broadcasting Jupiter swap...");
+    try {
+      const result = await executeJupiterSwap({ password, quoteResponse: quote });
+      setExecutionStatus(`Swap sent: ${result.signature}`);
+    } catch (error) {
+      setExecutionStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>InfinityX DEX</h2>
+      <p>Live quote routing uses Jupiter on Solana. Signed execution is handled locally by the wallet.</p>
+      <div className="swap-box"><label>From</label><input value={amount} onChange={(event) => setAmount(event.target.value)} /><strong>SOL</strong></div>
+      <div className="swap-box"><label>To</label><strong>USDC</strong></div>
+      <button className="primary" onClick={quoteCustomSwap}><Zap size={18} /> Build Live Quote</button>
+      <button className="secondary" onClick={quoteDex}><Globe2 size={18} /> Quick 0.1 SOL Quote</button>
+      <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password for swap execution" />
+      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I reviewed the route and want to broadcast this real swap.</label>
+      <button className="primary danger" onClick={executeSwap}><ArrowDownUp size={18} /> Sign and Swap</button>
+      <p className="status">{executionStatus}</p>
+      <p className="status">{status}</p>
+      <div className="fee-note">Service fee: {SERVICE_FEE_BPS / 100}% - IFX holders pay {IFX_DISCOUNT}% less.</div>
+    </section>
+  );
 }
 
 function ServicesPage({ setPage }) {
   const quick = [
+    { name: "Bridge", page: "bridge", icon: Layers3 },
     { name: "dApps", page: "dapps", icon: Globe2 },
     { name: "NFTs", page: "nfts", icon: Compass },
-    { name: "Metaverse API", page: "metaverse", icon: Layers3 }
+    { name: "Metaverse API", page: "metaverse", icon: Layers3 },
+    { name: "WalletConnect", page: "walletconnect", icon: Zap }
   ];
   return (
     <section className="page-card">
@@ -325,8 +382,220 @@ function RegistryPage({ title, path, field, items, setItems }) {
   );
 }
 
-function ActionPage({ title, icon: Icon, chain, body }) {
-  return <section className="page-card"><h2>{title}</h2><p>{body}</p><div className="action-panel"><Icon size={28} /><strong>{chain.name}</strong><span>Status: wallet vault required before signing live funds</span></div><button className="primary"><LockKeyhole size={18} /> Create local signing intent</button></section>;
+function BridgePage() {
+  const evmChains = chains.filter(isSupportedEvmChain);
+  const [fromName, setFromName] = useState("Base");
+  const [toName, setToName] = useState("Polygon");
+  const [fromToken, setFromToken] = useState("0x0000000000000000000000000000000000000000");
+  const [toToken, setToToken] = useState("0x0000000000000000000000000000000000000000");
+  const [amount, setAmount] = useState("100000000000000");
+  const [password, setPassword] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [quote, setQuote] = useState(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [status, setStatus] = useState("Bridge quotes use LI.FI. Amount is in smallest units.");
+
+  const fromChain = evmChains.find((item) => item.name === fromName) ?? evmChains[0];
+  const toChain = evmChains.find((item) => item.name === toName) ?? evmChains[1];
+
+  async function quoteBridge() {
+    setStatus("Fetching bridge quote...");
+    try {
+      const fromAddress = await deriveEvmAddress({ password });
+      const nextQuote = await getLifiBridgeQuote({
+        fromChain: evmChainId(fromChain),
+        toChain: evmChainId(toChain),
+        fromToken,
+        toToken,
+        fromAmount: amount,
+        fromAddress,
+        toAddress: recipient || fromAddress
+      });
+      setQuote(nextQuote);
+      setStatus(`Route ready: ${nextQuote.toolDetails?.name ?? nextQuote.tool ?? "LI.FI"} to ${toChain.name}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function executeBridge() {
+    if (!quote?.transactionRequest || !confirmed) {
+      setStatus("Quote first and tick confirmation before broadcasting.");
+      return;
+    }
+    setStatus("Signing bridge transaction...");
+    try {
+      const result = await sendEvmTransactionRequest({ password, chain: fromChain, request: quote.transactionRequest });
+      setStatus(`Bridge transaction sent: ${result.hash}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Bridge</h2>
+      <p>Real cross-chain route quotes and EVM transaction execution through LI.FI.</p>
+      <div className="form-grid">
+        <select value={fromName} onChange={(event) => setFromName(event.target.value)}>{evmChains.map((item) => <option key={item.name}>{item.name}</option>)}</select>
+        <select value={toName} onChange={(event) => setToName(event.target.value)}>{evmChains.map((item) => <option key={item.name}>{item.name}</option>)}</select>
+        <input value={fromToken} onChange={(event) => setFromToken(event.target.value)} placeholder="From token contract, 0x00 for native" />
+        <input value={toToken} onChange={(event) => setToToken(event.target.value)} placeholder="To token contract, 0x00 for native" />
+        <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount in smallest units" />
+        <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Destination address, optional" />
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+        <button className="primary" onClick={quoteBridge}><Layers3 size={18} /> Get Bridge Quote</button>
+      </div>
+      {quote && <div className="fee-note">Estimated receive: {quote.estimate?.toAmountMin ?? quote.estimate?.toAmount ?? "route returned"}</div>}
+      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I reviewed the bridge route and want to broadcast this real transaction.</label>
+      <button className="primary danger" onClick={executeBridge}><Send size={18} /> Sign and Bridge</button>
+      <p className="status">{status}</p>
+    </section>
+  );
+}
+
+function WalletConnectPage() {
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState("Requires VITE_WALLETCONNECT_PROJECT_ID from WalletConnect/Reown dashboard.");
+  const [uri, setUri] = useState("");
+
+  async function startWalletConnect() {
+    setStatus("Preparing WalletConnect client...");
+    try {
+      const solana = await getSolanaWalletState({ password });
+      const evmAddress = await deriveEvmAddress({ password });
+      const client = await initializeWalletConnect({
+        projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+        evmAddress,
+        solanaAddress: solana.address
+      });
+      if (uri.trim()) await client.walletKit.pair({ uri: uri.trim() });
+      setStatus(`WalletConnect ready. Active sessions: ${client.activeSessions}. Accounts: ${client.supportedAccounts.evm.length + client.supportedAccounts.solana.length}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>WalletConnect</h2>
+      <p>Connect InfinityX to dApps with WalletKit. Session requests must be reviewed before local signing.</p>
+      <div className="form-grid">
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+        <input value={uri} onChange={(event) => setUri(event.target.value)} placeholder="wc: pairing URI from dApp" />
+        <button className="primary" onClick={startWalletConnect}><Zap size={18} /> Initialize WalletConnect</button>
+      </div>
+      <div className="risk-box">
+        <span>Requires a WalletConnect project ID.</span>
+        <span>Production must add request-by-request approval screens before enabling dApp signing.</span>
+      </div>
+      <p className="status">{status}</p>
+    </section>
+  );
+}
+
+function SendPage({ chain }) {
+  const liveChain = chain.name === "Main" ? chains.find((item) => item.name === "Solana") : chain;
+  const [assetType, setAssetType] = useState(chain.kind === "EVM" ? "native" : "ifx");
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("");
+  const [tokenAddress, setTokenAddress] = useState(chain.name === "Main" || chain.name === "Solana" ? IFX_MINT : "");
+  const [decimals, setDecimals] = useState("18");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState("Ready. Transactions are signed only on this device.");
+  const [confirmed, setConfirmed] = useState(false);
+
+  const warnings = explainSendRisk({ chain: liveChain, assetType: assetType === "native" ? "native" : "token", recipient, amount, tokenAddress });
+
+  async function sendLive() {
+    if (!confirmed) {
+      setStatus("Review the warnings and tick the confirmation box first.");
+      return;
+    }
+    setStatus(`Signing ${assetType} transfer on ${liveChain.name}...`);
+    try {
+      let result;
+      if (liveChain.kind === "SVM") {
+        result = assetType === "native"
+          ? await sendSol({ password, to: recipient, amountSol: amount, rpcUrl: liveChain.rpc })
+          : await sendSplToken({ password, to: recipient, amount, mint: tokenAddress || IFX_MINT, rpcUrl: liveChain.rpc });
+        setStatus(`Broadcast on Solana: ${result.signature}`);
+      } else if (liveChain.kind === "EVM" && isSupportedEvmChain(liveChain)) {
+        result = assetType === "native"
+          ? await sendEvmNative({ password, chain: liveChain, to: recipient, amount })
+          : await sendErc20Token({ password, chain: liveChain, tokenAddress, to: recipient, amount, decimals });
+        setStatus(`Broadcast on ${liveChain.name}: ${result.hash}`);
+      } else {
+        throw new Error(`${liveChain.name} needs a native signer/indexer adapter before live sends.`);
+      }
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Send</h2>
+      <p>Live non-custodial send for Solana SPL/SOL and supported EVM native/ERC-20 assets.</p>
+      <div className="action-panel"><Send size={28} /><strong>{liveChain.name}</strong><span>Network fees are paid by the sending wallet.</span></div>
+      <div className="form-grid">
+        <select value={assetType} onChange={(event) => setAssetType(event.target.value)}>
+          <option value="native">Native coin ({liveChain.native})</option>
+          {(liveChain.kind === "SVM" || chain.name === "Main") && <option value="ifx">InfinityX IFX token</option>}
+          <option value="token">Custom token</option>
+        </select>
+        {assetType !== "native" && <input value={tokenAddress} onChange={(event) => setTokenAddress(event.target.value)} placeholder={liveChain.kind === "SVM" ? "SPL mint address" : "ERC-20 contract"} />}
+        {liveChain.kind === "EVM" && assetType !== "native" && <input value={decimals} onChange={(event) => setDecimals(event.target.value)} placeholder="Token decimals" />}
+        <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient address" />
+        <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+      </div>
+      <div className="risk-box">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>
+      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I reviewed the recipient, network, token, and amount.</label>
+      <button className="primary danger" onClick={sendLive}><Send size={18} /> Sign and Send Real Transaction</button>
+      <p className="status">{status}</p>
+    </section>
+  );
+}
+
+function ReceivePage({ chain }) {
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState("Unlock to show receive addresses generated from your encrypted vault.");
+  const [addresses, setAddresses] = useState(null);
+
+  async function unlockAddresses() {
+    setStatus("Unlocking local vault...");
+    try {
+      const solana = await getSolanaWalletState({ password });
+      const evm = await deriveEvmAddress({ password });
+      let evmBalance = null;
+      if (chain.kind === "EVM" && isSupportedEvmChain(chain)) {
+        evmBalance = await getEvmWalletState({ password, chain });
+      }
+      setAddresses({ solana, evm, evmBalance });
+      setStatus("Receive addresses are ready.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Receive</h2>
+      <p>Shows live addresses from the local non-custodial vault. Never share your seed phrase.</p>
+      <div className="form-grid">
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+        <button className="primary" onClick={unlockAddresses}><QrCode size={18} /> Show receive addresses</button>
+      </div>
+      {addresses && (
+        <div className="receive-list">
+          <article><strong>Solana / IFX</strong><span>{addresses.solana.address}</span><em>{addresses.solana.sol.toFixed(6)} SOL</em></article>
+          <article><strong>EVM</strong><span>{addresses.evm}</span><em>{addresses.evmBalance ? `${Number(addresses.evmBalance.native).toFixed(6)} ${chain.native}` : "Use on supported EVM chains"}</em></article>
+        </div>
+      )}
+      <p className="status">{status}</p>
+    </section>
+  );
 }
 
 function BuyPage({ markets, setMarkets }) {
@@ -376,10 +645,11 @@ function AddTokenPage({ customToken, setCustomToken, chain, registry, loadLocalR
 function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGeneratedPhrase }) {
   const [password, setPassword] = useState("");
   const [importPhrase, setImportPhrase] = useState("");
+  const [seedStrength, setSeedStrength] = useState(128);
 
   function generatePhrase() {
-    setGeneratedPhrase(createMnemonic(128));
-    setVaultStatus("12-word seed generated. Store it offline before encrypting.");
+    setGeneratedPhrase(createMnemonic(seedStrength));
+    setVaultStatus(`${seedStrength === 256 ? "24" : "12"}-word seed generated. Store it offline before encrypting.`);
   }
 
   async function encryptGeneratedVault() {
@@ -415,7 +685,11 @@ function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGenerat
         {["Main", "Trading", "Vault"].map((name, index) => <article key={name}><div className={`mini-avatar c${index}`}>{name[0]}</div><strong>{name}</strong><span>Unique vault account slot</span></article>)}
       </div>
       <div className="form-grid vault-form">
-        <button className="primary" onClick={generatePhrase}><Plus size={18} /> Generate 12-word seed</button>
+        <select value={seedStrength} onChange={(event) => setSeedStrength(Number(event.target.value))}>
+          <option value={128}>12-word seed phrase</option>
+          <option value={256}>24-word seed phrase</option>
+        </select>
+        <button className="primary" onClick={generatePhrase}><Plus size={18} /> Generate seed</button>
         {generatedPhrase && <textarea readOnly value={generatedPhrase} />}
         <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
         <button className="primary" onClick={encryptGeneratedVault}><LockKeyhole size={18} /> Encrypt generated vault</button>
@@ -467,4 +741,20 @@ function registryForChain(registry, chainName) {
   return registry.filter((asset) => (asset.chains ?? []).includes(chainName));
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+function evmChainId(chain) {
+  const ids = {
+    Ethereum: 1,
+    Polygon: 137,
+    "BNB Chain": 56,
+    Base: 8453,
+    Arbitrum: 42161,
+    Optimism: 10,
+    Avalanche: 43114,
+    Fantom: 250
+  };
+  return ids[chain.name];
+}
+
+const rootElement = document.getElementById("root");
+globalThis.__infinityXRoot ??= createRoot(rootElement);
+globalThis.__infinityXRoot.render(<App />);
