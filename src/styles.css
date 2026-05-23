@@ -27,12 +27,13 @@ button { border: 0; cursor: pointer; }
   padding: 18px 16px 96px;
 }
 
-.app-top, .account-row, .actions, .ifx-card, .search-card, .section-title, .token-row, .bottom-nav, .primary {
+.app-top, .account-row, .actions, .ifx-card, .search-card, .section-title, .token-row, .bottom-nav, .primary, .top-right, .action-panel, .profile-list button, .notification-list article, .account-list article {
   display: flex;
   align-items: center;
 }
 
 .app-top { justify-content: space-between; margin-bottom: 14px; }
+.top-right { gap: 8px; }
 
 .icon-button, .account-row button {
   width: 42px;
@@ -130,7 +131,8 @@ button { border: 0; cursor: pointer; }
   border: 1px solid #dce8e4;
 }
 
-.ifx-card { justify-content: space-between; gap: 12px; padding: 14px; }
+.ifx-card { justify-content: space-between; gap: 8px; padding: 14px; }
+.ifx-card div { min-width: 0; flex: 1; }
 .ifx-card span, .ifx-card small, .token-row span, .status, .page-card p, .fee-note { display: block; color: #60756f; font-size: 13px; }
 .ifx-card small { max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
 .ifx-card button {
@@ -166,7 +168,7 @@ button { border: 0; cursor: pointer; }
 
 .panel, .page-card { padding: 14px; }
 .section-title { gap: 8px; margin-bottom: 12px; }
-.recovery-grid, .form-grid, .service-grid, .chain-list-page, .market-strip { display: grid; gap: 10px; }
+.recovery-grid, .form-grid, .service-grid, .chain-list-page, .market-strip, .profile-list, .notification-list, .account-list { display: grid; gap: 10px; }
 .recovery-grid { grid-template-columns: repeat(2, 1fr); }
 .recovery-grid button {
   min-height: 44px;
@@ -207,6 +209,15 @@ button { border: 0; cursor: pointer; }
   font-weight: 900;
 }
 .fee-note { margin-top: 10px; }
+.action-panel {
+  min-height: 96px;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  border-radius: 16px;
+  background: #eef7f4;
+}
 
 .service-grid { grid-template-columns: repeat(2, 1fr); }
 .service-grid article, .market-strip article {
@@ -223,6 +234,28 @@ button { border: 0; cursor: pointer; }
 .chain-detail span { color: #60756f; font-size: 12px; }
 .chain-detail strong { word-break: break-word; }
 .market-strip { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
+.profile-list button, .notification-list article, .account-list article {
+  min-height: 48px;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: #eef7f4;
+  color: #10201d;
+  text-align: left;
+}
+.notification-list span, .account-list span { display: block; color: #60756f; font-size: 12px; }
+.mini-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #13c9a5;
+  color: #061412;
+  font-weight: 900;
+}
+.mini-avatar.c1 { background: #d3a633; }
+.mini-avatar.c2 { background: #9dd6ff; }
 
 .bottom-nav {
   position: fixed;
