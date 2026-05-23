@@ -168,7 +168,7 @@ button { border: 0; cursor: pointer; }
 
 .panel, .page-card { padding: 14px; }
 .section-title { gap: 8px; margin-bottom: 12px; }
-.recovery-grid, .form-grid, .service-grid, .chain-list-page, .market-strip, .profile-list, .notification-list, .account-list { display: grid; gap: 10px; }
+.recovery-grid, .form-grid, .service-grid, .chain-list-page, .market-strip, .profile-list, .notification-list, .account-list, .market-pairs { display: grid; gap: 10px; }
 .recovery-grid { grid-template-columns: repeat(2, 1fr); }
 .recovery-grid button {
   min-height: 44px;
@@ -226,7 +226,7 @@ button { border: 0; cursor: pointer; }
 }
 
 .service-grid { grid-template-columns: repeat(2, 1fr); }
-.service-grid article, .market-strip article {
+.service-grid article, .market-strip article, .market-pairs article {
   min-height: 92px;
   display: grid;
   gap: 4px;
@@ -235,7 +235,8 @@ button { border: 0; cursor: pointer; }
   background: #eef7f4;
 }
 .service-grid span { color: #10201d; font-weight: 900; }
-.service-grid em, .market-strip span { color: #60756f; font-style: normal; font-size: 12px; }
+.service-grid em, .market-strip span, .market-pairs span, .market-pairs em { color: #60756f; font-style: normal; font-size: 12px; }
+.market-pairs { margin-top: 12px; }
 .chain-detail { display: grid; gap: 5px; margin: 14px 0; }
 .chain-detail span { color: #60756f; font-size: 12px; }
 .chain-detail strong { word-break: break-word; }

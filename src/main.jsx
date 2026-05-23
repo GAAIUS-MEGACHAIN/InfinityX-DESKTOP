@@ -92,16 +92,34 @@ function App() {
   const [dexStatus, setDexStatus] = useState("Ready for live Jupiter quotes");
   const [recoveryStatus, setRecoveryStatus] = useState("Choose a recovery method");
   const [customToken, setCustomToken] = useState({ contract: "", symbol: "", network: "Main" });
+  const [registry, setRegistry] = useState([]);
   const [vaultStatus, setVaultStatus] = useState("No encrypted vault created yet");
   const [generatedPhrase, setGeneratedPhrase] = useState("");
+  const [markets, setMarkets] = useState(null);
 
   const filteredCoins = useMemo(() => {
-    const source = coins.length ? coins : (chainTopTokens[chain.name] ?? topAssets);
+    const registrySource = registryForChain(registry, chain.name);
+    const source = coins.length ? coins : (registrySource.length ? registrySource : (chainTopTokens[chain.name] ?? topAssets));
     const q = query.toLowerCase().trim();
     return source.filter((coin) => `${coin.name} ${coin.symbol} ${coin.network ?? ""}`.toLowerCase().includes(q)).slice(0, 80);
-  }, [coins, query, chain.name]);
+  }, [coins, query, chain.name, registry]);
+
+  async function loadLocalRegistry() {
+    setCoinStatus("Loading local top-3000 registry...");
+    const response = await fetch("/registry/top-3000-tokens.json");
+    if (!response.ok) {
+      setCoinStatus(`Local registry error: ${response.status}`);
+      return [];
+    }
+    const payload = await response.json();
+    setRegistry(payload.assets ?? []);
+    setCoinStatus(`Local top-${payload.count} registry loaded`);
+    return payload.assets ?? [];
+  }
 
   async function loadCoins() {
+    const local = await loadLocalRegistry();
+    if (local.length) return;
     setCoinStatus("Loading verified market list...");
     try {
       const pages = Array.from({ length: 12 }, (_, index) => index + 1);
@@ -155,15 +173,15 @@ function App() {
     if (page === "dex") return <DexPage status={dexStatus} quoteDex={quoteDex} />;
     if (page === "send") return <ActionPage title="Send" icon={Send} chain={chain} body="Creates an unsigned send intent for local wallet signing." />;
     if (page === "receive") return <ActionPage title="Receive" icon={QrCode} chain={chain} body="Shows receive QR/address after wallet creation or import." />;
-    if (page === "buy") return <BuyPage />;
-    if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} />;
+    if (page === "buy") return <BuyPage markets={markets} setMarkets={setMarkets} />;
+    if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} registry={registry} loadLocalRegistry={loadLocalRegistry} />;
     if (page === "profile") return <ProfilePage setPage={setPage} />;
     if (page === "notifications") return <NotificationsPage />;
     if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} />;
     if (page === "services") return <ServicesPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
-    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} copyMint={copyMint} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} />;
+    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} copyMint={copyMint} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} />;
   }
 
   return (
@@ -201,7 +219,7 @@ function App() {
   );
 }
 
-function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, copyMint, setPage, setupPasskey, recoveryStatus, setRecoveryStatus }) {
+function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, copyMint, setPage, setupPasskey, recoveryStatus, setRecoveryStatus, coinStatus }) {
   return (
     <>
       <section className="account-card">
@@ -224,6 +242,7 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, copyMint
         <button onClick={() => setPage("add")}><Plus size={17} /> Add</button>
       </section>
       <section className="search-card"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search top coins, token symbol, contract" /><button onClick={loadCoins}><Plus size={17} /></button></section>
+      <p className="status inline-status">{coinStatus}</p>
       <section className="token-list">
         {filteredCoins.map((token) => (
           <article className="token-row" key={`${token.symbol}-${token.name}`}>
@@ -263,12 +282,48 @@ function ActionPage({ title, icon: Icon, chain, body }) {
   return <section className="page-card"><h2>{title}</h2><p>{body}</p><div className="action-panel"><Icon size={28} /><strong>{chain.name}</strong><span>Status: wallet vault required before signing live funds</span></div><button className="primary"><LockKeyhole size={18} /> Create local signing intent</button></section>;
 }
 
-function BuyPage() {
-  return <section className="page-card"><h2>Buy IFX</h2><p>Bonding-curve sales require a deployed audited sale contract. This page prepares buy intents and fee quotes.</p><div className="swap-box"><label>Buy token</label><strong>IFX</strong></div><div className="swap-box"><label>Payment assets</label><strong>SOL / USDC</strong></div><button className="primary"><ShoppingCart size={18} /> Prepare buy intent</button><div className="fee-note">No airdrop allocation. No extra minting beyond fixed supply.</div></section>;
+function BuyPage({ markets, setMarkets }) {
+  async function loadMarkets() {
+    const response = await fetch("/registry/markets.json");
+    if (response.ok) setMarkets(await response.json());
+  }
+  return (
+    <section className="page-card">
+      <h2>Buy IFX</h2>
+      <p>IFX market routing uses existing liquidity sources where liquidity exists. Bonding-curve sales require a deployed audited sale contract.</p>
+      <div className="swap-box"><label>Buy token</label><strong>IFX</strong></div>
+      <div className="swap-box"><label>Payment assets</label><strong>SOL / USDC / USDT</strong></div>
+      <button className="primary" onClick={loadMarkets}><ShoppingCart size={18} /> Load market pairs</button>
+      <div className="market-pairs">
+        {(markets?.pairs ?? []).map((pair) => <article key={pair.pair}><strong>{pair.pair}</strong><span>{pair.chain}</span><em>{pair.quoteSource}</em></article>)}
+      </div>
+      <div className="fee-note">No airdrop allocation. No extra minting beyond fixed supply. Service fees use IFX discount policy.</div>
+    </section>
+  );
 }
 
-function AddTokenPage({ customToken, setCustomToken, chain }) {
-  return <section className="page-card"><h2>Add Token</h2><p>{chain.name === "Main" ? "Add any supported token from any connected chain." : `Add ${chain.name} tokens only.`}</p><div className="form-grid"><input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder="Contract, mint, or asset id" /><input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value })} placeholder="Token symbol" /><button className="primary"><Plus size={18} /> Validate and add</button></div></section>;
+function AddTokenPage({ customToken, setCustomToken, chain, registry, loadLocalRegistry }) {
+  const [selected, setSelected] = useState("");
+  const available = registryForChain(registry, chain.name).slice(0, 3000);
+  return (
+    <section className="page-card">
+      <h2>Add Token</h2>
+      <p>{chain.name === "Main" ? "Add any supported token from any connected chain." : `Add ${chain.name} tokens only.`}</p>
+      <div className="form-grid">
+        <button className="primary" onClick={loadLocalRegistry}><Plus size={18} /> Load local top 3000</button>
+        <select value={customToken.network} onChange={(event) => setCustomToken({ ...customToken, network: event.target.value })}>
+          {chains.map((item) => <option key={item.name}>{item.name}</option>)}
+        </select>
+        <select value={selected} onChange={(event) => setSelected(event.target.value)}>
+          <option value="">Choose from local registry</option>
+          {available.map((token) => <option key={`${token.id}-${token.symbol}`} value={token.id}>{token.symbol} - {token.name} - {(token.chains ?? []).join(", ")}</option>)}
+        </select>
+        <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder="Contract, mint, or asset id if not listed" />
+        <input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value })} placeholder="Token symbol" />
+        <button className="primary"><Plus size={18} /> Validate and add</button>
+      </div>
+    </section>
+  );
 }
 
 function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGeneratedPhrase }) {
@@ -336,6 +391,12 @@ function NotificationsPage() {
 
 function NewsPage({ coins, loadCoins, status }) {
   return <section className="page-card"><h2>Markets</h2><p>CoinGecko market feed for top coins.</p><button className="primary" onClick={loadCoins}><Globe2 size={18} /> Load Top 3000</button><p className="status">{status}</p><div className="market-strip">{(coins.length ? coins.slice(0, 9) : topAssets).map((coin) => <article key={`${coin.symbol}-${coin.name}`}><strong>{coin.symbol}</strong><span>{coin.price ? `$${Number(coin.price).toLocaleString()}` : coin.name}</span></article>)}</div></section>;
+}
+
+function registryForChain(registry, chainName) {
+  if (!registry.length) return [];
+  if (chainName === "Main") return registry;
+  return registry.filter((asset) => (asset.chains ?? []).includes(chainName));
 }
 
 createRoot(document.getElementById("root")).render(<App />);
