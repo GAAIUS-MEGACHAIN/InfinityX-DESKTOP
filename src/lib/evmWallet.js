@@ -28,7 +28,34 @@ const CHAIN_IDS = {
   Arbitrum: 42161,
   Optimism: 10,
   Avalanche: 43114,
-  Fantom: 250
+  Fantom: 250,
+  Linea: 59144,
+  Scroll: 534352,
+  "zkSync Era": 324,
+  Mantle: 5000,
+  Blast: 81457,
+  Mode: 34443,
+  Metis: 1088,
+  Gnosis: 100,
+  Celo: 42220,
+  Moonbeam: 1284,
+  Moonriver: 1285,
+  Cronos: 25,
+  Kava: 2222,
+  opBNB: 204,
+  Zora: 7777777,
+  "World Chain": 480,
+  Taiko: 167000,
+  Sonic: 146,
+  Berachain: 80094,
+  "Sei EVM": 1329,
+  Ronin: 2020,
+  "Immutable zkEVM": 13371,
+  Fraxtal: 252,
+  ApeChain: 33139,
+  Flare: 14,
+  Fuse: 122,
+  PulseChain: 369
 };
 
 export async function getEvmWalletState({ password, chain, accountIndex = 0 }) {
@@ -44,7 +71,7 @@ export async function getEvmWalletState({ password, chain, accountIndex = 0 }) {
 export async function getErc20TokenBalance({ password, chain, tokenAddress, decimals, accountIndex = 0 }) {
   if (!isAddress(tokenAddress)) throw new Error("Invalid ERC-20 contract address.");
   const { account, publicClient } = await unlockEvmSigner({ password, chain, accountIndex });
-  const tokenDecimals = Number.isFinite(Number(decimals))
+  const tokenDecimals = hasExplicitDecimals(decimals)
     ? Number(decimals)
     : Number(await publicClient.readContract({ address: tokenAddress, abi: ERC20_ABI, functionName: "decimals" }));
   const balance = await publicClient.readContract({
@@ -80,7 +107,7 @@ export async function sendErc20Token({ password, chain, tokenAddress, to, amount
   if (!isAddress(to)) throw new Error("Invalid EVM recipient address.");
   if (!isAddress(tokenAddress)) throw new Error("Invalid ERC-20 contract address.");
   const { account, walletClient, publicClient } = await unlockEvmSigner({ password, chain, accountIndex });
-  const tokenDecimals = Number.isFinite(Number(decimals))
+  const tokenDecimals = hasExplicitDecimals(decimals)
     ? Number(decimals)
     : Number(await publicClient.readContract({ address: tokenAddress, abi: ERC20_ABI, functionName: "decimals" }));
   const value = parseUnits(String(amount), tokenDecimals);
@@ -111,7 +138,7 @@ export async function sendEvmTransactionRequest({ password, chain, request, acco
 }
 
 export function isSupportedEvmChain(chain) {
-  return Boolean(chain?.rpc?.startsWith("http") && CHAIN_IDS[chain.name]);
+  return Boolean(chain?.rpc?.startsWith("http") && evmChainId(chain));
 }
 
 async function unlockEvmSigner({ password, chain, accountIndex }) {
@@ -120,7 +147,7 @@ async function unlockEvmSigner({ password, chain, accountIndex }) {
   if (!vault.phrase) throw new Error("Vault does not contain a mnemonic phrase.");
   const account = mnemonicToAccount(vault.phrase, { path: `m/44'/60'/0'/0/${accountIndex}` });
   const evmChain = defineChain({
-    id: CHAIN_IDS[chain.name],
+    id: evmChainId(chain),
     name: chain.name,
     nativeCurrency: { name: chain.native, symbol: chain.native, decimals: 18 },
     rpcUrls: { default: { http: [chain.rpc] }, public: { http: [chain.rpc] } },
@@ -132,4 +159,13 @@ async function unlockEvmSigner({ password, chain, accountIndex }) {
     publicClient: createPublicClient({ chain: evmChain, transport }),
     walletClient: createWalletClient({ account, chain: evmChain, transport })
   };
+}
+
+function evmChainId(chain) {
+  return chain?.chainId ?? CHAIN_IDS[chain?.name];
+}
+
+function hasExplicitDecimals(decimals) {
+  if (decimals === undefined || decimals === null || String(decimals).trim() === "") return false;
+  return Number.isFinite(Number(decimals));
 }

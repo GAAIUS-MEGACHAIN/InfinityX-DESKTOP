@@ -36,12 +36,13 @@ import { createMnemonic, deriveSolanaAccount, saveVault, validateSeedPhrase } fr
 import { extraChains } from "./data/extraChains.js";
 import { initializeGoogleSignIn } from "./lib/googleAuth.js";
 import { getLifiBridgeQuote } from "./lib/bridge.js";
-import { deriveEvmAddress, getErc20TokenBalance, getEvmWalletState, isSupportedEvmChain, sendErc20Token, sendEvmNative, sendEvmTransactionRequest } from "./lib/evmWallet.js";
+import { deriveEvmAddress, getEvmWalletState, isSupportedEvmChain, sendEvmTransactionRequest } from "./lib/evmWallet.js";
 import { connectInjectedWallet, walletAvailability } from "./lib/externalWallets.js";
 import { executeJupiterSwap, getJupiterQuote } from "./lib/jupiter.js";
 import { getNativeSecurityStatus, requireNativeSigningGate } from "./lib/nativeSecurity.js";
 import { explainSendRisk } from "./lib/security.js";
-import { createAndDelegateSolStake, createSolanaSplToken, getSolanaWalletState, getSplTokenBalance, IFX_MINT, quoteSolanaTokenCreation, sendSol, sendSplToken } from "./lib/solanaWallet.js";
+import { createAndDelegateSolStake, createSolanaSplToken, getSolanaWalletState, IFX_MINT, quoteSolanaTokenCreation } from "./lib/solanaWallet.js";
+import { assetKey, getAssetCapability, getAssetListForChain, getAssetReceiveState, sendUniversalAsset } from "./lib/transactionEngine.js";
 import { approveWalletConnectProposal, initializeWalletConnect, rejectWalletConnectProposal, rejectWalletConnectRequest } from "./lib/walletConnect.js";
 
 const SERVICE_FEE_BPS = 15;
@@ -179,8 +180,8 @@ function App() {
 
   function renderPage() {
     if (page === "dex") return <DexPage status={dexStatus} quoteDex={quoteDex} />;
-    if (page === "send") return <SendPage chain={chain} />;
-    if (page === "receive") return <ReceivePage chain={chain} />;
+    if (page === "send") return <SendPage chain={chain} registry={registry} />;
+    if (page === "receive") return <ReceivePage chain={chain} registry={registry} />;
     if (page === "buy") return <BuyPage markets={markets} setMarkets={setMarkets} />;
     if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} registry={registry} loadLocalRegistry={loadLocalRegistry} />;
     if (page === "create") return <CreateTokenPage />;
@@ -346,9 +347,10 @@ function TokenDetailPage({ token, chain, setPage }) {
 
   const effectiveNetwork = selectedNetwork || networks[0] || chain.name;
   const selectedChain = chainByName(effectiveNetwork);
-  const contract = contractForChain(token, effectiveNetwork);
-  const native = isNativeAsset(token, selectedChain);
-  const liveMode = liveSupportForAsset({ selectedChain, token, contract, native });
+  const capability = getAssetCapability({ chain: selectedChain, token });
+  const contract = capability.contract;
+  const native = capability.native;
+  const liveMode = capability.reason;
   const warnings = explainSendRisk({
     chain: selectedChain,
     assetType: native ? "native" : "token",
@@ -360,33 +362,9 @@ function TokenDetailPage({ token, chain, setPage }) {
   async function unlockAsset() {
     setStatus(`Reading ${token.symbol} on ${selectedChain.name}...`);
     try {
-      if (selectedChain.kind === "SVM") {
-        if (native) {
-          const state = await getSolanaWalletState({ password, rpcUrl: selectedChain.rpc });
-          setWalletState({ address: state.address, balance: state.sol, symbol: selectedChain.native });
-          setStatus("Live Solana native balance loaded.");
-          return;
-        }
-        if (!contract) throw new Error(`${token.symbol} has no Solana mint in the local registry.`);
-        const state = await getSplTokenBalance({ password, mint: contract, rpcUrl: selectedChain.rpc });
-        setWalletState({ address: state.address, tokenAccount: state.tokenAccount, balance: state.uiAmount, symbol: token.symbol });
-        setStatus("Live SPL token balance loaded.");
-        return;
-      }
-      if (selectedChain.kind === "EVM" && isSupportedEvmChain(selectedChain)) {
-        if (native) {
-          const state = await getEvmWalletState({ password, chain: selectedChain });
-          setWalletState({ address: state.address, balance: state.native, symbol: selectedChain.native });
-          setStatus(`Live ${selectedChain.name} native balance loaded.`);
-          return;
-        }
-        if (!contract) throw new Error(`${token.symbol} has no ${selectedChain.name} contract in the local registry.`);
-        const state = await getErc20TokenBalance({ password, chain: selectedChain, tokenAddress: contract, decimals: token.decimals });
-        setWalletState({ address: state.address, balance: state.uiAmount, symbol: token.symbol });
-        setStatus("Live ERC-20 token balance loaded.");
-        return;
-      }
-      throw new Error(`${selectedChain.name} is in the registry, but live signing/indexing for this native chain is not bundled yet.`);
+      const state = await getAssetReceiveState({ password, chain: selectedChain, token });
+      setWalletState(state);
+      setStatus(state.status);
     } catch (error) {
       setWalletState(null);
       setStatus(error.message);
@@ -401,21 +379,8 @@ function TokenDetailPage({ token, chain, setPage }) {
     setStatus(`Signing ${token.symbol} on ${selectedChain.name}...`);
     try {
       await requireNativeSigningGate(`Approve ${token.symbol} send`);
-      if (selectedChain.kind === "SVM") {
-        const result = native
-          ? await sendSol({ password, to: recipient, amountSol: amount, rpcUrl: selectedChain.rpc })
-          : await sendSplToken({ password, to: recipient, amount, mint: contract, rpcUrl: selectedChain.rpc });
-        setStatus(`Broadcast on Solana: ${result.signature}`);
-        return;
-      }
-      if (selectedChain.kind === "EVM" && isSupportedEvmChain(selectedChain)) {
-        const result = native
-          ? await sendEvmNative({ password, chain: selectedChain, to: recipient, amount })
-          : await sendErc20Token({ password, chain: selectedChain, tokenAddress: contract, to: recipient, amount, decimals: token.decimals });
-        setStatus(`Broadcast on ${selectedChain.name}: ${result.hash}`);
-        return;
-      }
-      throw new Error(`${selectedChain.name} needs a native signer/indexer adapter before live sends.`);
+      const result = await sendUniversalAsset({ password, chain: selectedChain, token, recipient, amount });
+      setStatus(`Broadcast on ${selectedChain.name}: ${result.signature ?? result.hash}`);
     } catch (error) {
       setStatus(error.message);
     }
@@ -890,41 +855,51 @@ function WalletConnectPage() {
   );
 }
 
-function SendPage({ chain }) {
-  const liveChain = chain.name === "Main" ? chains.find((item) => item.name === "Solana") : chain;
-  const [assetType, setAssetType] = useState(chain.kind === "EVM" ? "native" : "ifx");
+function SendPage({ chain, registry }) {
+  const networkOptions = chain.name === "Main" ? chains.filter((item) => item.name !== "Main") : [chain];
+  const [networkName, setNetworkName] = useState(chain.name === "Main" ? "Solana" : chain.name);
+  const liveChain = chainByName(networkName);
+  const [selectedAssetKey, setSelectedAssetKey] = useState("native");
+  const [customToken, setCustomToken] = useState({ symbol: "", contract: "", decimals: "" });
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [tokenAddress, setTokenAddress] = useState(chain.name === "Main" || chain.name === "Solana" ? IFX_MINT : "");
-  const [decimals, setDecimals] = useState("18");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState("Ready. Transactions are signed only on this device.");
   const [confirmed, setConfirmed] = useState(false);
+  const assets = useMemo(() => getAssetListForChain(registry, liveChain), [registry, liveChain.name]);
+  const effectiveSelectedAssetKey = selectedAssetKey === "native" ? assetKey(assets[0]) : selectedAssetKey;
+  const selectedAsset = effectiveSelectedAssetKey === "custom"
+    ? {
+        id: "custom",
+        symbol: customToken.symbol || "TOKEN",
+        name: customToken.symbol || "Custom Token",
+        network: liveChain.name,
+        chains: [liveChain.name],
+        contract: customToken.contract,
+        mint: liveChain.kind === "SVM" ? customToken.contract : undefined,
+        decimals: customToken.decimals
+      }
+    : (assets.find((asset) => assetKey(asset) === effectiveSelectedAssetKey) ?? assets[0]);
+  const capability = getAssetCapability({ chain: liveChain, token: selectedAsset });
 
-  const warnings = explainSendRisk({ chain: liveChain, assetType: assetType === "native" ? "native" : "token", recipient, amount, tokenAddress });
+  useEffect(() => {
+    const nextNetwork = chain.name === "Main" ? "Solana" : chain.name;
+    setNetworkName(nextNetwork);
+    setSelectedAssetKey("native");
+  }, [chain.name]);
+
+  const warnings = explainSendRisk({ chain: liveChain, assetType: capability.native ? "native" : "token", recipient, amount, tokenAddress: capability.contract });
 
   async function sendLive() {
     if (!confirmed) {
       setStatus("Review the warnings and tick the confirmation box first.");
       return;
     }
-    setStatus(`Signing ${assetType} transfer on ${liveChain.name}...`);
+    setStatus(`Signing ${selectedAsset.symbol} transfer on ${liveChain.name}...`);
     try {
       await requireNativeSigningGate("Approve InfinityX send signing");
-      let result;
-      if (liveChain.kind === "SVM") {
-        result = assetType === "native"
-          ? await sendSol({ password, to: recipient, amountSol: amount, rpcUrl: liveChain.rpc })
-          : await sendSplToken({ password, to: recipient, amount, mint: tokenAddress || IFX_MINT, rpcUrl: liveChain.rpc });
-        setStatus(`Broadcast on Solana: ${result.signature}`);
-      } else if (liveChain.kind === "EVM" && isSupportedEvmChain(liveChain)) {
-        result = assetType === "native"
-          ? await sendEvmNative({ password, chain: liveChain, to: recipient, amount })
-          : await sendErc20Token({ password, chain: liveChain, tokenAddress, to: recipient, amount, decimals });
-        setStatus(`Broadcast on ${liveChain.name}: ${result.hash}`);
-      } else {
-        throw new Error(`${liveChain.name} needs a native signer/indexer adapter before live sends.`);
-      }
+      const result = await sendUniversalAsset({ password, chain: liveChain, token: selectedAsset, recipient, amount });
+      setStatus(`Broadcast on ${liveChain.name}: ${result.signature ?? result.hash}`);
     } catch (error) {
       setStatus(error.message);
     }
@@ -933,16 +908,19 @@ function SendPage({ chain }) {
   return (
     <section className="page-card">
       <h2>Send</h2>
-      <p>Live non-custodial send for Solana SPL/SOL and supported EVM native/ERC-20 assets.</p>
-      <div className="action-panel"><Send size={28} /><strong>{liveChain.name}</strong><span>Network fees are paid by the sending wallet.</span></div>
+      <p>Universal send routes real transactions through the live adapter for the selected chain and asset.</p>
+      <div className="action-panel"><Send size={28} /><strong>{selectedAsset.symbol} on {liveChain.name}</strong><span>{capability.reason}</span></div>
       <div className="form-grid">
-        <select value={assetType} onChange={(event) => setAssetType(event.target.value)}>
-          <option value="native">Native coin ({liveChain.native})</option>
-          {(liveChain.kind === "SVM" || chain.name === "Main") && <option value="ifx">InfinityX IFX token</option>}
-          <option value="token">Custom token</option>
+        <select value={networkName} onChange={(event) => { setNetworkName(event.target.value); setSelectedAssetKey("native"); }}>
+          {networkOptions.map((item) => <option key={item.name}>{item.name}</option>)}
         </select>
-        {assetType !== "native" && <input value={tokenAddress} onChange={(event) => setTokenAddress(event.target.value)} placeholder={liveChain.kind === "SVM" ? "SPL mint address" : "ERC-20 contract"} />}
-        {liveChain.kind === "EVM" && assetType !== "native" && <input value={decimals} onChange={(event) => setDecimals(event.target.value)} placeholder="Token decimals" />}
+        <select value={effectiveSelectedAssetKey} onChange={(event) => setSelectedAssetKey(event.target.value)}>
+          {assets.slice(0, 3000).map((asset) => <option key={assetKey(asset)} value={assetKey(asset)}>{asset.symbol} - {asset.name}</option>)}
+          <option value="custom">Custom token contract/mint</option>
+        </select>
+        {effectiveSelectedAssetKey === "custom" && <input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value.toUpperCase() })} placeholder="Token symbol" />}
+        {effectiveSelectedAssetKey === "custom" && <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder={liveChain.kind === "SVM" ? "SPL mint address" : "ERC-20 contract"} />}
+        {effectiveSelectedAssetKey === "custom" && liveChain.kind === "EVM" && <input value={customToken.decimals} onChange={(event) => setCustomToken({ ...customToken, decimals: event.target.value })} placeholder="Decimals, blank = read from contract" />}
         <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient address" />
         <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
         <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
@@ -955,23 +933,45 @@ function SendPage({ chain }) {
   );
 }
 
-function ReceivePage({ chain }) {
+function ReceivePage({ chain, registry }) {
+  const networkOptions = chain.name === "Main" ? chains.filter((item) => item.name !== "Main") : [chain];
+  const [networkName, setNetworkName] = useState(chain.name === "Main" ? "Solana" : chain.name);
+  const liveChain = chainByName(networkName);
+  const [selectedAssetKey, setSelectedAssetKey] = useState("native");
+  const [customToken, setCustomToken] = useState({ symbol: "", contract: "", decimals: "" });
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState("Unlock to show receive addresses generated from your encrypted vault.");
-  const [addresses, setAddresses] = useState(null);
+  const [receiveState, setReceiveState] = useState(null);
+  const assets = useMemo(() => getAssetListForChain(registry, liveChain), [registry, liveChain.name]);
+  const effectiveSelectedAssetKey = selectedAssetKey === "native" ? assetKey(assets[0]) : selectedAssetKey;
+  const selectedAsset = effectiveSelectedAssetKey === "custom"
+    ? {
+        id: "custom-receive",
+        symbol: customToken.symbol || "TOKEN",
+        name: customToken.symbol || "Custom Token",
+        network: liveChain.name,
+        chains: [liveChain.name],
+        contract: customToken.contract,
+        mint: liveChain.kind === "SVM" ? customToken.contract : undefined,
+        decimals: customToken.decimals
+      }
+    : (assets.find((asset) => assetKey(asset) === effectiveSelectedAssetKey) ?? assets[0]);
+  const capability = getAssetCapability({ chain: liveChain, token: selectedAsset });
+
+  useEffect(() => {
+    setNetworkName(chain.name === "Main" ? "Solana" : chain.name);
+    setSelectedAssetKey("native");
+    setReceiveState(null);
+  }, [chain.name]);
 
   async function unlockAddresses() {
-    setStatus("Unlocking local vault...");
+    setStatus(`Unlocking ${selectedAsset.symbol} receive address on ${liveChain.name}...`);
     try {
-      const solana = await getSolanaWalletState({ password });
-      const evm = await deriveEvmAddress({ password });
-      let evmBalance = null;
-      if (chain.kind === "EVM" && isSupportedEvmChain(chain)) {
-        evmBalance = await getEvmWalletState({ password, chain });
-      }
-      setAddresses({ solana, evm, evmBalance });
-      setStatus("Receive addresses are ready.");
+      const state = await getAssetReceiveState({ password, chain: liveChain, token: selectedAsset });
+      setReceiveState(state);
+      setStatus(state.status);
     } catch (error) {
+      setReceiveState(null);
       setStatus(error.message);
     }
   }
@@ -979,17 +979,29 @@ function ReceivePage({ chain }) {
   return (
     <section className="page-card">
       <h2>Receive</h2>
-      <p>Shows live addresses from the local non-custodial vault. Never share your seed phrase.</p>
+      <p>Shows the correct receive address for the selected chain and token from the local non-custodial vault.</p>
       <div className="form-grid">
+        <select value={networkName} onChange={(event) => { setNetworkName(event.target.value); setSelectedAssetKey("native"); }}>
+          {networkOptions.map((item) => <option key={item.name}>{item.name}</option>)}
+        </select>
+        <select value={effectiveSelectedAssetKey} onChange={(event) => setSelectedAssetKey(event.target.value)}>
+          {assets.slice(0, 3000).map((asset) => <option key={assetKey(asset)} value={assetKey(asset)}>{asset.symbol} - {asset.name}</option>)}
+          <option value="custom">Custom token contract/mint</option>
+        </select>
+        {effectiveSelectedAssetKey === "custom" && <input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value.toUpperCase() })} placeholder="Token symbol" />}
+        {effectiveSelectedAssetKey === "custom" && <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder={liveChain.kind === "SVM" ? "SPL mint address" : "ERC-20 contract"} />}
+        {effectiveSelectedAssetKey === "custom" && liveChain.kind === "EVM" && <input value={customToken.decimals} onChange={(event) => setCustomToken({ ...customToken, decimals: event.target.value })} placeholder="Decimals, blank = read from contract" />}
         <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
-        <button className="primary" onClick={unlockAddresses}><QrCode size={18} /> Show receive addresses</button>
+        <button className="primary" onClick={unlockAddresses}><QrCode size={18} /> Show Receive Address</button>
       </div>
-      {addresses && (
+      {receiveState && (
         <div className="receive-list">
-          <article><strong>Solana / IFX</strong><span>{addresses.solana.address}</span><em>{addresses.solana.sol.toFixed(6)} SOL</em></article>
-          <article><strong>EVM</strong><span>{addresses.evm}</span><em>{addresses.evmBalance ? `${Number(addresses.evmBalance.native).toFixed(6)} ${chain.native}` : "Use on supported EVM chains"}</em></article>
+          <article><strong>{selectedAsset.symbol} on {liveChain.name}</strong><span>{receiveState.address}</span><em>{formatBalance(receiveState.balance)} {receiveState.symbol}</em></article>
+          {receiveState.contract && <article><strong>Contract / mint</strong><span>{receiveState.contract}</span></article>}
+          {receiveState.tokenAccount && <article><strong>Token account</strong><span>{receiveState.tokenAccount}</span></article>}
         </div>
       )}
+      <p className="status">{capability.reason}</p>
       <p className="status">{status}</p>
     </section>
   );
@@ -1153,27 +1165,12 @@ function getTokenNetworks(token, currentChain) {
   return [...new Set(usable.length ? usable : [currentChain.name])];
 }
 
-function contractForChain(token, chainName) {
-  if (!token) return "";
-  if (String(token.symbol).toUpperCase() === "IFX" && chainName === "Solana") return IFX_MINT;
-  if (token.mint && chainName === "Solana") return token.mint;
-  if (token.contract && (!token.network || token.network === chainName || token.network === "Multi-chain")) return token.contract;
-  return (token.contracts ?? []).find((contract) => contract.chain === chainName)?.address ?? "";
-}
-
 function isNativeAsset(token, chain) {
   const symbol = String(token?.symbol ?? "").toUpperCase();
   const native = String(chain?.native ?? "").toUpperCase();
   if (!symbol || !native) return false;
   if (symbol === native) return true;
   return chain?.name === "Ethereum" && symbol === "ETH";
-}
-
-function liveSupportForAsset({ selectedChain, token, contract, native }) {
-  if (selectedChain.kind === "SVM" && (native || contract)) return "Live Solana send, receive, balance, and native SOL staking are enabled.";
-  if (selectedChain.kind === "EVM" && isSupportedEvmChain(selectedChain) && (native || contract)) return "Live EVM send, receive, and balance are enabled for this supported network.";
-  if (!contract && !native) return `${token.symbol} is tracked here, but this network has no bundled contract/mint for live sending.`;
-  return `${selectedChain.name} requires a native signer/indexer adapter before live transactions can be broadcast.`;
 }
 
 function stakingStatusFor(token, selectedChain) {

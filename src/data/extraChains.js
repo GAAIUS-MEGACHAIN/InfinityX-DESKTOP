@@ -1,3 +1,33 @@
+const liveEvmNetworks = {
+  Linea: { chainId: 59144, rpc: "https://rpc.linea.build", explorer: "https://lineascan.build" },
+  Scroll: { chainId: 534352, rpc: "https://rpc.scroll.io", explorer: "https://scrollscan.com" },
+  "zkSync Era": { chainId: 324, rpc: "https://mainnet.era.zksync.io", explorer: "https://explorer.zksync.io" },
+  Mantle: { chainId: 5000, rpc: "https://rpc.mantle.xyz", explorer: "https://mantlescan.xyz" },
+  Blast: { chainId: 81457, rpc: "https://rpc.blast.io", explorer: "https://blastscan.io" },
+  Mode: { chainId: 34443, rpc: "https://mainnet.mode.network", explorer: "https://explorer.mode.network" },
+  Metis: { chainId: 1088, rpc: "https://andromeda.metis.io/?owner=1088", explorer: "https://andromeda-explorer.metis.io" },
+  Gnosis: { chainId: 100, rpc: "https://rpc.gnosischain.com", explorer: "https://gnosisscan.io" },
+  Celo: { chainId: 42220, rpc: "https://forno.celo.org", explorer: "https://celoscan.io" },
+  Moonbeam: { chainId: 1284, rpc: "https://rpc.api.moonbeam.network", explorer: "https://moonbeam.moonscan.io" },
+  Moonriver: { chainId: 1285, rpc: "https://rpc.api.moonriver.moonbeam.network", explorer: "https://moonriver.moonscan.io" },
+  Cronos: { chainId: 25, rpc: "https://evm.cronos.org", explorer: "https://explorer.cronos.org" },
+  Kava: { chainId: 2222, rpc: "https://evm.kava.io", explorer: "https://kavascan.com" },
+  opBNB: { chainId: 204, rpc: "https://opbnb-mainnet-rpc.bnbchain.org", explorer: "https://mainnet.opbnbscan.com" },
+  Zora: { chainId: 7777777, rpc: "https://rpc.zora.energy", explorer: "https://explorer.zora.energy" },
+  "World Chain": { chainId: 480, rpc: "https://worldchain-mainnet.g.alchemy.com/public", explorer: "https://worldscan.org" },
+  Taiko: { chainId: 167000, rpc: "https://rpc.mainnet.taiko.xyz", explorer: "https://taikoscan.io" },
+  Sonic: { chainId: 146, rpc: "https://rpc.soniclabs.com", explorer: "https://sonicscan.org" },
+  Berachain: { chainId: 80094, rpc: "https://rpc.berachain.com", explorer: "https://berascan.com" },
+  "Sei EVM": { chainId: 1329, rpc: "https://evm-rpc.sei-apis.com", explorer: "https://seiscan.io" },
+  Ronin: { chainId: 2020, rpc: "https://api.roninchain.com/rpc", explorer: "https://app.roninchain.com" },
+  "Immutable zkEVM": { chainId: 13371, rpc: "https://rpc.immutable.com", explorer: "https://explorer.immutable.com" },
+  Fraxtal: { chainId: 252, rpc: "https://rpc.frax.com", explorer: "https://fraxscan.com" },
+  ApeChain: { chainId: 33139, rpc: "https://rpc.apechain.com", explorer: "https://apescan.io" },
+  Flare: { chainId: 14, rpc: "https://flare-api.flare.network/ext/C/rpc", explorer: "https://flare-explorer.flare.network" },
+  Fuse: { chainId: 122, rpc: "https://rpc.fuse.io", explorer: "https://explorer.fuse.io" },
+  PulseChain: { chainId: 369, rpc: "https://rpc.pulsechain.com", explorer: "https://scan.pulsechain.com" }
+};
+
 export const extraChains = [
   ["Linea", "ETH", "EVM"], ["Scroll", "ETH", "EVM"], ["zkSync Era", "ETH", "EVM"], ["Mantle", "MNT", "EVM"],
   ["Blast", "ETH", "EVM"], ["Mode", "ETH", "EVM"], ["Manta Pacific", "ETH", "EVM"], ["Metis", "METIS", "EVM"],
@@ -34,6 +64,7 @@ export const extraChains = [
   symbol: native,
   native,
   kind,
-  rpc: "provider-required",
-  explorer: "provider-required"
+  rpc: liveEvmNetworks[name]?.rpc ?? "provider-required",
+  explorer: liveEvmNetworks[name]?.explorer ?? "provider-required",
+  chainId: liveEvmNetworks[name]?.chainId
 }));
