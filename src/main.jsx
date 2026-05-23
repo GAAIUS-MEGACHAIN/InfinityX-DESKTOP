@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowDownUp,
@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import { createMnemonic, deriveSolanaAccount, saveVault, validateSeedPhrase } from "./lib/vault.js";
+import { extraChains } from "./data/extraChains.js";
+import { initializeGoogleSignIn } from "./lib/googleAuth.js";
 
 const IFX_MINT = "4s9Bbk3AB223bbqAHhiCcqVg14C6m46ioixJFXMcunm1";
 const SERVICE_FEE_BPS = 15;
@@ -62,7 +64,8 @@ const chains = [
   { name: "Fantom", symbol: "FTM", kind: "EVM", rpc: "https://fantom-rpc.publicnode.com", explorer: "https://ftmscan.com", native: "FTM" },
   { name: "Bitcoin", symbol: "BTC", kind: "UTXO", rpc: "indexer-required", explorer: "https://mempool.space", native: "BTC" },
   { name: "Cardano", symbol: "ADA", kind: "UTXO", rpc: "indexer-required", explorer: "https://cardanoscan.io", native: "ADA" },
-  { name: "XRP Ledger", symbol: "XRP", kind: "Account", rpc: "wss://xrplcluster.com", explorer: "https://xrpscan.com", native: "XRP" }
+  { name: "XRP Ledger", symbol: "XRP", kind: "Account", rpc: "wss://xrplcluster.com", explorer: "https://xrpscan.com", native: "XRP" },
+  ...extraChains
 ];
 
 const chainTopTokens = {
@@ -381,8 +384,29 @@ function AccountsPage({ vaultStatus, setVaultStatus, generatedPhrase, setGenerat
 }
 
 function ProfilePage({ setPage }) {
+  const googleButton = useRef(null);
+  const [googleStatus, setGoogleStatus] = useState("Google sign-in is optional and never unlocks seed phrases.");
   const items = [["Profile", UserRound], ["Settings", Settings], ["API", Globe2], ["Contacts", Users], ["Resources", Compass], ["Support", BellRing], ["Apply token listing", Plus], ["Seed phrase vault", KeyRound]];
-  return <section className="page-card"><h2>Profile</h2><p>Manage settings, contacts, API access, support, token listing applications, and seed phrase controls.</p><div className="profile-list">{items.map(([label, Icon]) => <button key={label}><Icon size={18} /> {label}</button>)}</div><button className="primary" onClick={() => setPage("wallet")}>Log out</button></section>;
+  async function startGoogle() {
+    if (!googleButton.current) return;
+    const result = await initializeGoogleSignIn(googleButton.current, () => {
+      setGoogleStatus("Google identity received. Server-side token verification is required before production login.");
+    });
+    if (!result.ok) setGoogleStatus(`${result.reason}. Create a Google OAuth Client ID first.`);
+  }
+  return (
+    <section className="page-card">
+      <h2>Profile</h2>
+      <p>Manage settings, contacts, API access, support, token listing applications, and seed phrase controls.</p>
+      <div className="google-card">
+        <button className="primary" onClick={startGoogle}><UserCircle size={18} /> Enable Google sign-in</button>
+        <div ref={googleButton} className="google-button" />
+        <p className="status">{googleStatus}</p>
+      </div>
+      <div className="profile-list">{items.map(([label, Icon]) => <button key={label}><Icon size={18} /> {label}</button>)}</div>
+      <button className="primary" onClick={() => setPage("wallet")}>Log out</button>
+    </section>
+  );
 }
 
 function NotificationsPage() {

@@ -250,6 +250,17 @@ button { border: 0; cursor: pointer; }
   color: #10201d;
   text-align: left;
 }
+.google-card {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px;
+  border-radius: 14px;
+  background: #eef7f4;
+}
+.google-button {
+  min-height: 40px;
+}
 .notification-list span, .account-list span { display: block; color: #60756f; font-size: 12px; }
 .mini-avatar {
   width: 34px;

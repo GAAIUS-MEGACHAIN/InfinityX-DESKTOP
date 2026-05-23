@@ -1,0 +1,1202 @@
+{
+  "generatedAt": "2026-05-23T11:46:42.166Z",
+  "count": 133,
+  "chains": [
+    {
+      "id": "main",
+      "name": "Main",
+      "type": "InfinityX virtual routing layer",
+      "native": "IFX",
+      "connectedChains": [
+        "solana",
+        "ethereum",
+        "polygon",
+        "bnb",
+        "base",
+        "arbitrum",
+        "optimism",
+        "avalanche",
+        "fantom",
+        "bitcoin",
+        "cardano",
+        "xrp",
+        "linea",
+        "scroll",
+        "zksync-era",
+        "mantle",
+        "blast",
+        "mode",
+        "manta-pacific",
+        "metis",
+        "gnosis",
+        "celo",
+        "moonbeam",
+        "moonriver",
+        "cronos",
+        "kava",
+        "klaytn",
+        "kaia",
+        "harmony",
+        "aurora",
+        "boba",
+        "rootstock",
+        "opbnb",
+        "zora",
+        "world-chain",
+        "taiko",
+        "sonic",
+        "berachain",
+        "sei-evm",
+        "injective-evm",
+        "tron",
+        "ton",
+        "sui",
+        "aptos",
+        "near",
+        "cosmos-hub",
+        "osmosis",
+        "celestia",
+        "stargaze",
+        "juno",
+        "akash",
+        "kujira",
+        "secret-network",
+        "stride",
+        "evmos",
+        "coreum",
+        "polkadot",
+        "kusama",
+        "acala",
+        "astar",
+        "bittensor",
+        "filecoin",
+        "algorand",
+        "stellar",
+        "hedera",
+        "tezos",
+        "eos",
+        "wax",
+        "flow",
+        "internet-computer",
+        "kaspa",
+        "litecoin",
+        "dogecoin",
+        "bitcoin-cash",
+        "dash",
+        "zcash",
+        "monero",
+        "stacks",
+        "nervos",
+        "ergo",
+        "vechain",
+        "theta",
+        "iota",
+        "nano",
+        "multiversx",
+        "waves",
+        "neo",
+        "ontology",
+        "qtum",
+        "conflux",
+        "ronin",
+        "immutable-zkevm",
+        "xai",
+        "lisk",
+        "fraxtal",
+        "apechain",
+        "abstract",
+        "sanko",
+        "redstone",
+        "cyber",
+        "degen-chain",
+        "shibarium",
+        "pulsechain",
+        "chiliz",
+        "okx-chain",
+        "heco",
+        "bittorrent-chain",
+        "wemix",
+        "oasis-sapphire",
+        "oasis",
+        "flare",
+        "songbird",
+        "energy-web",
+        "fuse",
+        "telos-evm",
+        "meter",
+        "callisto",
+        "syscoin-nevm",
+        "elastos",
+        "godwoken",
+        "platon",
+        "rei-network",
+        "ubiq",
+        "tomochain",
+        "kardiachain",
+        "zetachain",
+        "merlin",
+        "b-network",
+        "bob",
+        "mezo",
+        "fractal-bitcoin",
+        "bevm"
+      ]
+    },
+    {
+      "id": "solana",
+      "name": "Solana",
+      "type": "SVM",
+      "native": "SOL",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "explorer": "https://solscan.io"
+    },
+    {
+      "id": "ethereum",
+      "name": "Ethereum",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "https://ethereum-rpc.publicnode.com",
+      "explorer": "https://etherscan.io"
+    },
+    {
+      "id": "polygon",
+      "name": "Polygon",
+      "type": "EVM",
+      "native": "POL",
+      "rpc": "https://polygon-bor-rpc.publicnode.com",
+      "explorer": "https://polygonscan.com"
+    },
+    {
+      "id": "bnb",
+      "name": "BNB Chain",
+      "type": "EVM",
+      "native": "BNB",
+      "rpc": "https://bsc-rpc.publicnode.com",
+      "explorer": "https://bscscan.com"
+    },
+    {
+      "id": "base",
+      "name": "Base",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "https://base-rpc.publicnode.com",
+      "explorer": "https://basescan.org"
+    },
+    {
+      "id": "arbitrum",
+      "name": "Arbitrum",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "https://arbitrum-one-rpc.publicnode.com",
+      "explorer": "https://arbiscan.io"
+    },
+    {
+      "id": "optimism",
+      "name": "Optimism",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "https://optimism-rpc.publicnode.com",
+      "explorer": "https://optimistic.etherscan.io"
+    },
+    {
+      "id": "avalanche",
+      "name": "Avalanche",
+      "type": "EVM",
+      "native": "AVAX",
+      "rpc": "https://avalanche-c-chain-rpc.publicnode.com",
+      "explorer": "https://snowtrace.io"
+    },
+    {
+      "id": "fantom",
+      "name": "Fantom",
+      "type": "EVM",
+      "native": "FTM",
+      "rpc": "https://fantom-rpc.publicnode.com",
+      "explorer": "https://ftmscan.com"
+    },
+    {
+      "id": "bitcoin",
+      "name": "Bitcoin",
+      "type": "UTXO",
+      "native": "BTC",
+      "rpc": "indexer-required",
+      "explorer": "https://mempool.space"
+    },
+    {
+      "id": "cardano",
+      "name": "Cardano",
+      "type": "UTXO",
+      "native": "ADA",
+      "rpc": "indexer-required",
+      "explorer": "https://cardanoscan.io"
+    },
+    {
+      "id": "xrp",
+      "name": "XRP Ledger",
+      "type": "Account",
+      "native": "XRP",
+      "rpc": "wss://xrplcluster.com",
+      "explorer": "https://xrpscan.com"
+    },
+    {
+      "id": "linea",
+      "name": "Linea",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "scroll",
+      "name": "Scroll",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "zksync-era",
+      "name": "zkSync Era",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "mantle",
+      "name": "Mantle",
+      "type": "EVM",
+      "native": "MNT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "blast",
+      "name": "Blast",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "mode",
+      "name": "Mode",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "manta-pacific",
+      "name": "Manta Pacific",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "metis",
+      "name": "Metis",
+      "type": "EVM",
+      "native": "METIS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "gnosis",
+      "name": "Gnosis",
+      "type": "EVM",
+      "native": "xDAI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "celo",
+      "name": "Celo",
+      "type": "EVM",
+      "native": "CELO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "moonbeam",
+      "name": "Moonbeam",
+      "type": "EVM",
+      "native": "GLMR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "moonriver",
+      "name": "Moonriver",
+      "type": "EVM",
+      "native": "MOVR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "cronos",
+      "name": "Cronos",
+      "type": "EVM",
+      "native": "CRO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "kava",
+      "name": "Kava",
+      "type": "EVM",
+      "native": "KAVA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "klaytn",
+      "name": "Klaytn",
+      "type": "EVM",
+      "native": "KLAY",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "kaia",
+      "name": "Kaia",
+      "type": "EVM",
+      "native": "KAIA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "harmony",
+      "name": "Harmony",
+      "type": "EVM",
+      "native": "ONE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "boba",
+      "name": "Boba",
+      "type": "EVM",
+      "native": "BOBA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "rootstock",
+      "name": "Rootstock",
+      "type": "EVM",
+      "native": "RBTC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "opbnb",
+      "name": "opBNB",
+      "type": "EVM",
+      "native": "BNB",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "zora",
+      "name": "Zora",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "world-chain",
+      "name": "World Chain",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "taiko",
+      "name": "Taiko",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "sonic",
+      "name": "Sonic",
+      "type": "EVM",
+      "native": "S",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "berachain",
+      "name": "Berachain",
+      "type": "EVM",
+      "native": "BERA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "sei-evm",
+      "name": "Sei EVM",
+      "type": "EVM",
+      "native": "SEI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "injective-evm",
+      "name": "Injective EVM",
+      "type": "EVM",
+      "native": "INJ",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "tron",
+      "name": "Tron",
+      "type": "Account",
+      "native": "TRX",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "ton",
+      "name": "Ton",
+      "type": "Account",
+      "native": "TON",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "sui",
+      "name": "Sui",
+      "type": "Move",
+      "native": "SUI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "aptos",
+      "name": "Aptos",
+      "type": "Move",
+      "native": "APT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "near",
+      "name": "Near",
+      "type": "Account",
+      "native": "NEAR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "cosmos-hub",
+      "name": "Cosmos Hub",
+      "type": "Cosmos",
+      "native": "ATOM",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "osmosis",
+      "name": "Osmosis",
+      "type": "Cosmos",
+      "native": "OSMO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "celestia",
+      "name": "Celestia",
+      "type": "Cosmos",
+      "native": "TIA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "stargaze",
+      "name": "Stargaze",
+      "type": "Cosmos",
+      "native": "STARS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "juno",
+      "name": "Juno",
+      "type": "Cosmos",
+      "native": "JUNO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "akash",
+      "name": "Akash",
+      "type": "Cosmos",
+      "native": "AKT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "kujira",
+      "name": "Kujira",
+      "type": "Cosmos",
+      "native": "KUJI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "secret-network",
+      "name": "Secret Network",
+      "type": "Cosmos",
+      "native": "SCRT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "stride",
+      "name": "Stride",
+      "type": "Cosmos",
+      "native": "STRD",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "evmos",
+      "name": "Evmos",
+      "type": "Cosmos/EVM",
+      "native": "EVMOS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "coreum",
+      "name": "Coreum",
+      "type": "Cosmos",
+      "native": "COREUM",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "polkadot",
+      "name": "Polkadot",
+      "type": "Substrate",
+      "native": "DOT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "kusama",
+      "name": "Kusama",
+      "type": "Substrate",
+      "native": "KSM",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "acala",
+      "name": "Acala",
+      "type": "Substrate",
+      "native": "ACA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "astar",
+      "name": "Astar",
+      "type": "Substrate",
+      "native": "ASTR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "bittensor",
+      "name": "Bittensor",
+      "type": "Substrate",
+      "native": "TAO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "filecoin",
+      "name": "Filecoin",
+      "type": "Account",
+      "native": "FIL",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "algorand",
+      "name": "Algorand",
+      "type": "Account",
+      "native": "ALGO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "stellar",
+      "name": "Stellar",
+      "type": "Account",
+      "native": "XLM",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "hedera",
+      "name": "Hedera",
+      "type": "Account",
+      "native": "HBAR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "tezos",
+      "name": "Tezos",
+      "type": "Account",
+      "native": "XTZ",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "eos",
+      "name": "EOS",
+      "type": "Account",
+      "native": "EOS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "wax",
+      "name": "WAX",
+      "type": "Account",
+      "native": "WAXP",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "flow",
+      "name": "Flow",
+      "type": "Account",
+      "native": "FLOW",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "internet-computer",
+      "name": "Internet Computer",
+      "type": "Canister",
+      "native": "ICP",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "kaspa",
+      "name": "Kaspa",
+      "type": "UTXO",
+      "native": "KAS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "litecoin",
+      "name": "Litecoin",
+      "type": "UTXO",
+      "native": "LTC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "dogecoin",
+      "name": "Dogecoin",
+      "type": "UTXO",
+      "native": "DOGE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "bitcoin-cash",
+      "name": "Bitcoin Cash",
+      "type": "UTXO",
+      "native": "BCH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "dash",
+      "name": "Dash",
+      "type": "UTXO",
+      "native": "DASH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "zcash",
+      "name": "Zcash",
+      "type": "UTXO",
+      "native": "ZEC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "monero",
+      "name": "Monero",
+      "type": "Privacy",
+      "native": "XMR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "stacks",
+      "name": "Stacks",
+      "type": "Bitcoin L2",
+      "native": "STX",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "nervos",
+      "name": "Nervos",
+      "type": "UTXO",
+      "native": "CKB",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "ergo",
+      "name": "Ergo",
+      "type": "UTXO",
+      "native": "ERG",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "vechain",
+      "name": "VeChain",
+      "type": "Account",
+      "native": "VET",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "theta",
+      "name": "Theta",
+      "type": "Account",
+      "native": "THETA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "iota",
+      "name": "IOTA",
+      "type": "DAG",
+      "native": "IOTA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "nano",
+      "name": "Nano",
+      "type": "DAG",
+      "native": "XNO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "multiversx",
+      "name": "MultiversX",
+      "type": "Account",
+      "native": "EGLD",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "waves",
+      "name": "Waves",
+      "type": "Account",
+      "native": "WAVES",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "neo",
+      "name": "Neo",
+      "type": "Account",
+      "native": "NEO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "ontology",
+      "name": "Ontology",
+      "type": "Account",
+      "native": "ONT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "qtum",
+      "name": "Qtum",
+      "type": "UTXO/EVM",
+      "native": "QTUM",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "conflux",
+      "name": "Conflux",
+      "type": "Account",
+      "native": "CFX",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "ronin",
+      "name": "Ronin",
+      "type": "EVM",
+      "native": "RON",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "immutable-zkevm",
+      "name": "Immutable zkEVM",
+      "type": "EVM",
+      "native": "IMX",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "xai",
+      "name": "Xai",
+      "type": "EVM",
+      "native": "XAI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "lisk",
+      "name": "Lisk",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "fraxtal",
+      "name": "Fraxtal",
+      "type": "EVM",
+      "native": "frxETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "apechain",
+      "name": "ApeChain",
+      "type": "EVM",
+      "native": "APE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "abstract",
+      "name": "Abstract",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "sanko",
+      "name": "Sanko",
+      "type": "EVM",
+      "native": "DMT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "redstone",
+      "name": "Redstone",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "cyber",
+      "name": "Cyber",
+      "type": "EVM",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "degen-chain",
+      "name": "Degen Chain",
+      "type": "EVM",
+      "native": "DEGEN",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "shibarium",
+      "name": "Shibarium",
+      "type": "EVM",
+      "native": "BONE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "pulsechain",
+      "name": "PulseChain",
+      "type": "EVM",
+      "native": "PLS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "chiliz",
+      "name": "Chiliz",
+      "type": "EVM",
+      "native": "CHZ",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "okx-chain",
+      "name": "OKX Chain",
+      "type": "EVM",
+      "native": "OKT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "heco",
+      "name": "HECO",
+      "type": "EVM",
+      "native": "HT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "bittorrent-chain",
+      "name": "BitTorrent Chain",
+      "type": "EVM",
+      "native": "BTT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "wemix",
+      "name": "WEMIX",
+      "type": "EVM",
+      "native": "WEMIX",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "oasis-sapphire",
+      "name": "Oasis Sapphire",
+      "type": "EVM",
+      "native": "ROSE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "oasis",
+      "name": "Oasis",
+      "type": "Account",
+      "native": "ROSE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "flare",
+      "name": "Flare",
+      "type": "EVM",
+      "native": "FLR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "songbird",
+      "name": "Songbird",
+      "type": "EVM",
+      "native": "SGB",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "energy-web",
+      "name": "Energy Web",
+      "type": "EVM",
+      "native": "EWT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "fuse",
+      "name": "Fuse",
+      "type": "EVM",
+      "native": "FUSE",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "telos-evm",
+      "name": "Telos EVM",
+      "type": "EVM",
+      "native": "TLOS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "meter",
+      "name": "Meter",
+      "type": "EVM",
+      "native": "MTR",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "callisto",
+      "name": "Callisto",
+      "type": "EVM",
+      "native": "CLO",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "syscoin-nevm",
+      "name": "Syscoin NEVM",
+      "type": "EVM",
+      "native": "SYS",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "elastos",
+      "name": "Elastos",
+      "type": "EVM",
+      "native": "ELA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "godwoken",
+      "name": "Godwoken",
+      "type": "EVM",
+      "native": "CKB",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "platon",
+      "name": "PlatON",
+      "type": "EVM",
+      "native": "LAT",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "rei-network",
+      "name": "REI Network",
+      "type": "EVM",
+      "native": "REI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "ubiq",
+      "name": "Ubiq",
+      "type": "EVM",
+      "native": "UBQ",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "tomochain",
+      "name": "TomoChain",
+      "type": "EVM",
+      "native": "VIC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "kardiachain",
+      "name": "KardiaChain",
+      "type": "EVM",
+      "native": "KAI",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "zetachain",
+      "name": "ZetaChain",
+      "type": "EVM",
+      "native": "ZETA",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "merlin",
+      "name": "Merlin",
+      "type": "Bitcoin L2",
+      "native": "BTC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "b-network",
+      "name": "B² Network",
+      "type": "Bitcoin L2",
+      "native": "BTC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "bob",
+      "name": "BOB",
+      "type": "Bitcoin L2",
+      "native": "ETH",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "mezo",
+      "name": "Mezo",
+      "type": "Bitcoin L2",
+      "native": "BTC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "fractal-bitcoin",
+      "name": "Fractal Bitcoin",
+      "type": "Bitcoin L2",
+      "native": "FB",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    },
+    {
+      "id": "bevm",
+      "name": "BEVM",
+      "type": "Bitcoin L2",
+      "native": "BTC",
+      "rpc": "provider-required",
+      "explorer": "provider-required"
+    }
+  ]
+}
