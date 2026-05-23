@@ -33,6 +33,7 @@
     }
   },
   "devDependencies": {
+    "@capacitor/core": "^8.3.4",
     "@noble/hashes": "^2.2.0",
     "@reown/walletkit": "^1.5.5",
     "@scure/bip32": "^2.2.0",

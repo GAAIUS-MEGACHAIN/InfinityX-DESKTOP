@@ -1,16 +1,26 @@
 import {
+  Authorized,
   Connection,
+  Keypair,
   LAMPORTS_PER_SOL,
+  Lockup,
   PublicKey,
+  StakeProgram,
   SystemProgram,
   Transaction
 } from "@solana/web3.js";
 import {
+  AuthorityType,
+  createInitializeMintInstruction,
   createAssociatedTokenAccountInstruction,
+  createMintToCheckedInstruction,
+  createSetAuthorityInstruction,
   createTransferCheckedInstruction,
   getAccount,
   getAssociatedTokenAddress,
-  getMint
+  getMint,
+  MINT_SIZE,
+  TOKEN_PROGRAM_ID
 } from "@solana/spl-token";
 import { deriveSolanaKeypair, unlockVault } from "./vault.js";
 
@@ -94,6 +104,125 @@ export async function sendSplToken({
   const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
   return { signature, explorer: `https://solscan.io/tx/${signature}` };
+}
+
+export async function quoteSolanaTokenCreation({ rpcUrl = SOLANA_MAINNET_RPC } = {}) {
+  const connection = await getHealthySolanaConnection(rpcUrl);
+  const mintRent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
+  const ataRent = await connection.getMinimumBalanceForRentExemption(165);
+  const networkLamports = mintRent + ataRent + 10000;
+  return {
+    networkLamports,
+    networkSol: networkLamports / LAMPORTS_PER_SOL,
+    serviceFeeIfx: 25,
+    serviceFeeDiscountIfx: 12.5
+  };
+}
+
+export async function createSolanaSplToken({
+  password,
+  name,
+  symbol,
+  decimals = 9,
+  supply,
+  revokeMintAuthority = false,
+  rpcUrl = SOLANA_MAINNET_RPC,
+  accountIndex = 0
+}) {
+  if (!name?.trim() || !symbol?.trim()) throw new Error("Token name and symbol are required.");
+  const tokenDecimals = Number(decimals);
+  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 9) throw new Error("Solana token decimals must be 0-9.");
+  const { keypair } = await unlockSolanaSigner({ password, accountIndex });
+  const connection = await getHealthySolanaConnection(rpcUrl);
+  const mintKeypair = Keypair.generate();
+  const mintRent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
+  const ownerAta = await getAssociatedTokenAddress(mintKeypair.publicKey, keypair.publicKey);
+  const latest = await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: keypair.publicKey,
+    blockhash: latest.blockhash,
+    lastValidBlockHeight: latest.lastValidBlockHeight
+  });
+
+  transaction.add(
+    SystemProgram.createAccount({
+      fromPubkey: keypair.publicKey,
+      newAccountPubkey: mintKeypair.publicKey,
+      space: MINT_SIZE,
+      lamports: mintRent,
+      programId: TOKEN_PROGRAM_ID
+    }),
+    createInitializeMintInstruction(mintKeypair.publicKey, tokenDecimals, keypair.publicKey, null),
+    createAssociatedTokenAccountInstruction(keypair.publicKey, ownerAta, keypair.publicKey, mintKeypair.publicKey),
+    createMintToCheckedInstruction(
+      mintKeypair.publicKey,
+      ownerAta,
+      keypair.publicKey,
+      parseTokenUnits(supply, tokenDecimals),
+      tokenDecimals
+    )
+  );
+
+  if (revokeMintAuthority) {
+    transaction.add(createSetAuthorityInstruction(mintKeypair.publicKey, keypair.publicKey, AuthorityType.MintTokens, null));
+  }
+
+  transaction.sign(keypair, mintKeypair);
+  await assertSolanaSimulation(connection, transaction);
+  const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+  await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  return {
+    signature,
+    mint: mintKeypair.publicKey.toBase58(),
+    ownerTokenAccount: ownerAta.toBase58(),
+    explorer: `https://solscan.io/token/${mintKeypair.publicKey.toBase58()}`
+  };
+}
+
+export async function createAndDelegateSolStake({
+  password,
+  amountSol,
+  voteAddress,
+  rpcUrl = SOLANA_MAINNET_RPC,
+  accountIndex = 0
+}) {
+  const { keypair } = await unlockSolanaSigner({ password, accountIndex });
+  const connection = await getHealthySolanaConnection(rpcUrl);
+  const votePubkey = parseSolanaAddress(voteAddress);
+  const stakeAccount = Keypair.generate();
+  const rent = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
+  const stakeLamports = parseSolAmount(amountSol);
+  const latest = await connection.getLatestBlockhash("confirmed");
+  const authorized = new Authorized(keypair.publicKey, keypair.publicKey);
+  const lockup = new Lockup(0, 0, keypair.publicKey);
+  const transaction = new Transaction({
+    feePayer: keypair.publicKey,
+    blockhash: latest.blockhash,
+    lastValidBlockHeight: latest.lastValidBlockHeight
+  }).add(
+    StakeProgram.createAccount({
+      fromPubkey: keypair.publicKey,
+      stakePubkey: stakeAccount.publicKey,
+      authorized,
+      lockup,
+      lamports: stakeLamports + rent
+    }),
+    StakeProgram.delegate({
+      stakePubkey: stakeAccount.publicKey,
+      authorizedPubkey: keypair.publicKey,
+      votePubkey
+    })
+  );
+
+  transaction.sign(keypair, stakeAccount);
+  await assertSolanaSimulation(connection, transaction);
+  const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+  await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  return {
+    signature,
+    stakeAccount: stakeAccount.publicKey.toBase58(),
+    explorer: `https://solscan.io/tx/${signature}`
+  };
 }
 
 export function parseSolanaAddress(value) {

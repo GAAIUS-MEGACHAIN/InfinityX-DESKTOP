@@ -37,10 +37,12 @@ import { extraChains } from "./data/extraChains.js";
 import { initializeGoogleSignIn } from "./lib/googleAuth.js";
 import { getLifiBridgeQuote } from "./lib/bridge.js";
 import { deriveEvmAddress, getEvmWalletState, isSupportedEvmChain, sendErc20Token, sendEvmNative, sendEvmTransactionRequest } from "./lib/evmWallet.js";
+import { connectInjectedWallet, walletAvailability } from "./lib/externalWallets.js";
 import { executeJupiterSwap, getJupiterQuote } from "./lib/jupiter.js";
+import { getNativeSecurityStatus, requireNativeSigningGate } from "./lib/nativeSecurity.js";
 import { explainSendRisk } from "./lib/security.js";
-import { getSolanaWalletState, IFX_MINT, sendSol, sendSplToken } from "./lib/solanaWallet.js";
-import { initializeWalletConnect } from "./lib/walletConnect.js";
+import { createAndDelegateSolStake, createSolanaSplToken, getSolanaWalletState, IFX_MINT, quoteSolanaTokenCreation, sendSol, sendSplToken } from "./lib/solanaWallet.js";
+import { approveWalletConnectProposal, initializeWalletConnect, rejectWalletConnectProposal, rejectWalletConnectRequest } from "./lib/walletConnect.js";
 
 const SERVICE_FEE_BPS = 15;
 const IFX_DISCOUNT = 50;
@@ -89,6 +91,8 @@ const services = [
   { name: "Bridge", fee: "0.20%", ifx: "0.10%", icon: Layers3 },
   { name: "DEX Routing", fee: "0.15%", ifx: "0.075%", icon: Zap },
   { name: "Buy IFX", fee: "0.25%", ifx: "0.125%", icon: ShoppingCart },
+  { name: "Token Creation", fee: "0.25%", ifx: "0.125%", icon: Plus },
+  { name: "Staking", fee: "0.10%", ifx: "0.05%", icon: BadgeDollarSign },
   { name: "QR Payments", fee: "0.10%", ifx: "0.05%", icon: QrCode },
   { name: "Portfolio", fee: "Free", ifx: "Free", icon: Wallet }
 ];
@@ -173,7 +177,8 @@ function App() {
       setRecoveryStatus("Passkeys are not supported on this device/browser");
       return;
     }
-    setRecoveryStatus("Passkey support detected. Native secure signing plugin is required before storing funds.");
+    const native = await getNativeSecurityStatus();
+    setRecoveryStatus(native.native ? `Native secure gate ready. Biometric available: ${native.biometricAvailable ? "yes" : "no"}. Hardware-backed key: ${native.hardwareBackedKey ? "yes" : "unknown"}.` : "Passkey support detected in browser. Android uses native biometric/keystore gate in the APK.");
   }
 
   function copyMint() {
@@ -186,18 +191,22 @@ function App() {
     if (page === "receive") return <ReceivePage chain={chain} />;
     if (page === "buy") return <BuyPage markets={markets} setMarkets={setMarkets} />;
     if (page === "add") return <AddTokenPage customToken={customToken} setCustomToken={setCustomToken} chain={chain} registry={registry} loadLocalRegistry={loadLocalRegistry} />;
+    if (page === "create") return <CreateTokenPage />;
+    if (page === "connect") return <ConnectPage setPage={setPage} />;
+    if (page === "import") return <ImportPage setPage={setPage} />;
     if (page === "profile") return <ProfilePage setPage={setPage} />;
     if (page === "notifications") return <NotificationsPage />;
     if (page === "accounts") return <AccountsPage vaultStatus={vaultStatus} setVaultStatus={setVaultStatus} generatedPhrase={generatedPhrase} setGeneratedPhrase={setGeneratedPhrase} />;
     if (page === "services") return <ServicesPage setPage={setPage} />;
     if (page === "bridge") return <BridgePage />;
+    if (page === "staking") return <StakingPage />;
     if (page === "dapps") return <RegistryPage title="dApps" path="/registry/dapps.json" field="dapps" items={dapps} setItems={setDapps} />;
     if (page === "nfts") return <RegistryPage title="NFTs" path="/registry/nfts.json" field="collections" items={nfts} setItems={setNfts} />;
     if (page === "metaverse") return <RegistryPage title="Metaverse API" path="/registry/metaverse.json" field="worlds" items={metaverse} setItems={setMetaverse} />;
     if (page === "walletconnect") return <WalletConnectPage />;
     if (page === "chains") return <ChainsPage selected={chain} setChain={setChain} />;
     if (page === "news") return <NewsPage coins={coins} loadCoins={loadCoins} status={coinStatus} />;
-    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} copyMint={copyMint} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} />;
+    return <WalletPage chain={chain} filteredCoins={filteredCoins} query={query} setQuery={setQuery} loadCoins={loadCoins} setPage={setPage} setupPasskey={setupPasskey} recoveryStatus={recoveryStatus} setRecoveryStatus={setRecoveryStatus} coinStatus={coinStatus} />;
   }
 
   return (
@@ -227,7 +236,9 @@ function App() {
         <footer className="bottom-nav">
           <button className={page === "wallet" ? "active" : ""} onClick={() => setPage("wallet")}><Wallet size={20} /><span>Wallet</span></button>
           <button className={page === "dex" ? "active" : ""} onClick={() => setPage("dex")}><ArrowDownUp size={20} /><span>DEX</span></button>
-          <button className={page === "buy" ? "active" : ""} onClick={() => setPage("buy")}><ShoppingCart size={20} /><span>Buy</span></button>
+          <button className={page === "dapps" ? "active" : ""} onClick={() => setPage("dapps")}><Globe2 size={20} /><span>dApps</span></button>
+          <button className={page === "nfts" ? "active" : ""} onClick={() => setPage("nfts")}><Compass size={20} /><span>NFTs</span></button>
+          <button className={page === "staking" ? "active" : ""} onClick={() => setPage("staking")}><BadgeDollarSign size={20} /><span>Stake</span></button>
           <button className={page === "services" ? "active" : ""} onClick={() => setPage("services")}><BadgeDollarSign size={20} /><span>Services</span></button>
         </footer>
       </section>
@@ -235,7 +246,7 @@ function App() {
   );
 }
 
-function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, copyMint, setPage, setupPasskey, recoveryStatus, setRecoveryStatus, coinStatus }) {
+function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage, setupPasskey, recoveryStatus, setRecoveryStatus, coinStatus }) {
   return (
     <>
       <section className="account-card">
@@ -254,7 +265,9 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, copyMint
       </section>
       <section className="ifx-card">
         <div><span>InfinityX Main Coin</span><strong>Connect, create, import, or add assets</strong><small>{IFX_MINT}</small></div>
-        <button onClick={copyMint}><Copy size={17} /> Mint</button>
+        <button onClick={() => setPage("create")}><Plus size={17} /> Create</button>
+        <button onClick={() => setPage("connect")}><Zap size={17} /> Connect</button>
+        <button onClick={() => setPage("import")}><Import size={17} /> Import</button>
         <button onClick={() => setPage("add")}><Plus size={17} /> Add</button>
       </section>
       <section className="search-card"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search top coins, token symbol, contract" /><button onClick={loadCoins}><Plus size={17} /></button></section>
@@ -309,6 +322,7 @@ function DexPage({ status, quoteDex }) {
     }
     setExecutionStatus("Signing and broadcasting Jupiter swap...");
     try {
+      await requireNativeSigningGate("Approve InfinityX swap signing");
       const result = await executeJupiterSwap({ password, quoteResponse: quote });
       setExecutionStatus(`Swap sent: ${result.signature}`);
     } catch (error) {
@@ -382,6 +396,167 @@ function RegistryPage({ title, path, field, items, setItems }) {
   );
 }
 
+function CreateTokenPage() {
+  const evmChains = chains.filter(isSupportedEvmChain);
+  const [network, setNetwork] = useState("Solana");
+  const [form, setForm] = useState({ name: "My InfinityX Token", symbol: "MIX", decimals: "9", supply: "1000000", password: "" });
+  const [revoke, setRevoke] = useState(true);
+  const [quote, setQuote] = useState("Choose a chain and get a live creation quote.");
+  const [status, setStatus] = useState("Solana creates a real SPL token from the local vault. EVM chains use the InfinityX factory contract after deployment.");
+
+  async function getCreationQuote() {
+    setQuote("Quoting network cost...");
+    try {
+      if (network === "Solana") {
+        const solQuote = await quoteSolanaTokenCreation();
+        setQuote(`Solana estimated network cost: ${solQuote.networkSol.toFixed(6)} SOL. InfinityX service fee: ${solQuote.serviceFeeIfx} IFX, or ${solQuote.serviceFeeDiscountIfx} IFX with IFX discount.`);
+        return;
+      }
+      const selectedChain = evmChains.find((item) => item.name === network);
+      const gasPriceHex = await rpcCall(selectedChain.rpc, "eth_gasPrice", []);
+      const gasPrice = BigInt(gasPriceHex);
+      const estimatedGas = 1_500_000n;
+      const estimatedWei = gasPrice * estimatedGas;
+      setQuote(`${network} estimated factory deploy gas: ${(Number(estimatedWei) / 1e18).toFixed(6)} ${selectedChain.native}. InfinityX service fee: 25 IFX, or 12.5 IFX with IFX discount.`);
+    } catch (error) {
+      setQuote(error.message);
+    }
+  }
+
+  async function createToken() {
+    if (network !== "Solana") {
+      setStatus("EVM token creation is ready at contract/UI level, but the factory must be deployed on that chain before broadcasting.");
+      return;
+    }
+    setStatus("Creating real Solana SPL token...");
+    try {
+      await requireNativeSigningGate("Approve InfinityX token creation");
+      const result = await createSolanaSplToken({
+        password: form.password,
+        name: form.name,
+        symbol: form.symbol,
+        decimals: Number(form.decimals),
+        supply: form.supply,
+        revokeMintAuthority: revoke
+      });
+      setStatus(`Token created. Mint: ${result.mint}. Tx: ${result.signature}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Create Token</h2>
+      <p>Create tokens through InfinityX. Service fee can be paid in IFX with the holder discount.</p>
+      <div className="form-grid">
+        <select value={network} onChange={(event) => setNetwork(event.target.value)}>
+          <option>Solana</option>
+          {evmChains.map((item) => <option key={item.name}>{item.name}</option>)}
+        </select>
+        <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Token name" />
+        <input value={form.symbol} onChange={(event) => setForm({ ...form, symbol: event.target.value.toUpperCase() })} placeholder="Symbol" />
+        <input value={form.decimals} onChange={(event) => setForm({ ...form, decimals: event.target.value })} placeholder="Decimals" />
+        <input value={form.supply} onChange={(event) => setForm({ ...form, supply: event.target.value })} placeholder="Initial supply" />
+        <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="Vault password" />
+        <label className="check-row"><input type="checkbox" checked={revoke} onChange={(event) => setRevoke(event.target.checked)} /> Revoke Solana mint authority after creation.</label>
+        <button className="secondary" onClick={getCreationQuote}><CircleDollarSign size={18} /> Get Real Cost Quote</button>
+        <button className="primary danger" onClick={createToken}><Plus size={18} /> Create Token</button>
+      </div>
+      <p className="status">{quote}</p>
+      <p className="status">{status}</p>
+    </section>
+  );
+}
+
+function ConnectPage({ setPage }) {
+  const [status, setStatus] = useState("Connect external wallets or use WalletConnect pairing.");
+  const availability = walletAvailability();
+  const wallets = [
+    ["phantom", "Phantom", "Solana wallet"],
+    ["metamask", "MetaMask", "EVM wallet"],
+    ["coinbase", "Coinbase Wallet", "EVM wallet"],
+    ["trust", "Trust Wallet", "Mobile/EVM wallet"],
+    ["ethereum", "Injected Wallet", "Any browser EVM provider"]
+  ];
+
+  async function connect(wallet) {
+    setStatus(`Connecting ${wallet}...`);
+    try {
+      const result = await connectInjectedWallet(wallet);
+      setStatus(`${result.wallet} connected: ${result.address}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Connect</h2>
+      <p>Connect Phantom, MetaMask, WalletConnect, Coinbase Wallet, Trust Wallet, or any injected wallet.</p>
+      <div className="profile-list">
+        {wallets.map(([id, label, note]) => <button key={id} onClick={() => connect(id)}><Zap size={18} /> {label}<span>{availability[id] ? "Detected" : note}</span></button>)}
+        <button onClick={() => setPage("walletconnect")}><Zap size={18} /> WalletConnect<span>Pair with any compatible wallet/dApp</span></button>
+      </div>
+      <p className="status">{status}</p>
+    </section>
+  );
+}
+
+function ImportPage({ setPage }) {
+  return (
+    <section className="page-card">
+      <h2>Import</h2>
+      <p>Import seed phrases into the encrypted local vault or import watched token contracts from any supported chain.</p>
+      <div className="profile-list">
+        <button onClick={() => setPage("accounts")}><Import size={18} /> Import seed phrase<span>Encrypted on this device</span></button>
+        <button onClick={() => setPage("add")}><Plus size={18} /> Import token / coin<span>Pick chain, network, and token</span></button>
+        <button onClick={() => setPage("connect")}><Zap size={18} /> Connect external wallet<span>Phantom, MetaMask, Coinbase, Trust</span></button>
+      </div>
+    </section>
+  );
+}
+
+function StakingPage() {
+  const [password, setPassword] = useState("");
+  const [amount, setAmount] = useState("");
+  const [voteAddress, setVoteAddress] = useState("");
+  const [status, setStatus] = useState("Live staking is enabled for Solana native stake accounts. Other staking assets use provider integrations.");
+  const stakeAssets = [
+    { symbol: "SOL", chain: "Solana", mode: "Live native stake delegation" },
+    { symbol: "ETH", chain: "Ethereum", mode: "Provider staking adapter required" },
+    { symbol: "POL", chain: "Polygon", mode: "Validator/provider adapter required" },
+    { symbol: "BNB", chain: "BNB Chain", mode: "Provider staking adapter required" },
+    { symbol: "AVAX", chain: "Avalanche", mode: "P-chain adapter required" }
+  ];
+
+  async function stakeSol() {
+    setStatus("Creating and delegating Solana stake account...");
+    try {
+      await requireNativeSigningGate("Approve InfinityX staking transaction");
+      const result = await createAndDelegateSolStake({ password, amountSol: amount, voteAddress });
+      setStatus(`Stake delegated. Stake account: ${result.stakeAccount}. Tx: ${result.signature}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <h2>Staking</h2>
+      <p>Stake assets that support staking. Solana native staking signs and broadcasts from your local vault.</p>
+      <div className="registry-list">{stakeAssets.map((asset) => <article key={asset.symbol}><strong>{asset.symbol}</strong><span>{asset.chain}</span><em>{asset.mode}</em></article>)}</div>
+      <div className="form-grid staking-form">
+        <input value={voteAddress} onChange={(event) => setVoteAddress(event.target.value)} placeholder="Solana validator vote address" />
+        <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="SOL amount to stake" />
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
+        <button className="primary danger" onClick={stakeSol}><BadgeDollarSign size={18} /> Create and Delegate Stake</button>
+      </div>
+      <p className="status">{status}</p>
+    </section>
+  );
+}
+
 function BridgePage() {
   const evmChains = chains.filter(isSupportedEvmChain);
   const [fromName, setFromName] = useState("Base");
@@ -425,6 +600,7 @@ function BridgePage() {
     }
     setStatus("Signing bridge transaction...");
     try {
+      await requireNativeSigningGate("Approve InfinityX bridge signing");
       const result = await sendEvmTransactionRequest({ password, chain: fromChain, request: quote.transactionRequest });
       setStatus(`Bridge transaction sent: ${result.hash}`);
     } catch (error) {
@@ -458,19 +634,57 @@ function WalletConnectPage() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState("Requires VITE_WALLETCONNECT_PROJECT_ID from WalletConnect/Reown dashboard.");
   const [uri, setUri] = useState("");
+  const [proposals, setProposals] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const walletKitRef = useRef(null);
+  const accountsRef = useRef({ evmAddress: "", solanaAddress: "" });
 
   async function startWalletConnect() {
     setStatus("Preparing WalletConnect client...");
     try {
       const solana = await getSolanaWalletState({ password });
       const evmAddress = await deriveEvmAddress({ password });
+      accountsRef.current = { evmAddress, solanaAddress: solana.address };
       const client = await initializeWalletConnect({
         projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
         evmAddress,
-        solanaAddress: solana.address
+        solanaAddress: solana.address,
+        onProposal: (proposal) => setProposals((items) => [...items, proposal]),
+        onRequest: (request) => setRequests((items) => [...items, request])
       });
+      walletKitRef.current = client.walletKit;
       if (uri.trim()) await client.walletKit.pair({ uri: uri.trim() });
       setStatus(`WalletConnect ready. Active sessions: ${client.activeSessions}. Accounts: ${client.supportedAccounts.evm.length + client.supportedAccounts.solana.length}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function approveProposal(proposal) {
+    try {
+      await approveWalletConnectProposal({ walletKit: walletKitRef.current, proposal, ...accountsRef.current });
+      setProposals((items) => items.filter((item) => item.id !== proposal.id));
+      setStatus("WalletConnect session approved.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function rejectProposal(proposal) {
+    try {
+      await rejectWalletConnectProposal({ walletKit: walletKitRef.current, proposal });
+      setProposals((items) => items.filter((item) => item.id !== proposal.id));
+      setStatus("WalletConnect session rejected.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function rejectRequest(request) {
+    try {
+      await rejectWalletConnectRequest({ walletKit: walletKitRef.current, request });
+      setRequests((items) => items.filter((item) => item.id !== request.id));
+      setStatus("WalletConnect request rejected.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -487,7 +701,11 @@ function WalletConnectPage() {
       </div>
       <div className="risk-box">
         <span>Requires a WalletConnect project ID.</span>
-        <span>Production must add request-by-request approval screens before enabling dApp signing.</span>
+        <span>Every session and signing request must be approved here before local signing.</span>
+      </div>
+      <div className="registry-list">
+        {proposals.map((proposal) => <article key={proposal.id}><strong>{proposal.params?.proposer?.metadata?.name ?? "Session proposal"}</strong><span>{proposal.params?.proposer?.metadata?.url ?? "WalletConnect dApp"}</span><em>Approve only if you trust this dApp.</em><button className="secondary" onClick={() => approveProposal(proposal)}>Approve Session</button><button className="secondary" onClick={() => rejectProposal(proposal)}>Reject</button></article>)}
+        {requests.map((request) => <article key={request.id}><strong>{request.params?.request?.method ?? "Signing request"}</strong><span>{request.topic}</span><em>Request approval screen ready. Transaction signing adapters should decode the payload before approval.</em><button className="secondary" onClick={() => rejectRequest(request)}>Reject Request</button></article>)}
       </div>
       <p className="status">{status}</p>
     </section>
@@ -514,6 +732,7 @@ function SendPage({ chain }) {
     }
     setStatus(`Signing ${assetType} transfer on ${liveChain.name}...`);
     try {
+      await requireNativeSigningGate("Approve InfinityX send signing");
       let result;
       if (liveChain.kind === "SVM") {
         result = assetType === "native"
@@ -620,18 +839,23 @@ function BuyPage({ markets, setMarkets }) {
 
 function AddTokenPage({ customToken, setCustomToken, chain, registry, loadLocalRegistry }) {
   const [selected, setSelected] = useState("");
-  const available = registryForChain(registry, chain.name).slice(0, 3000);
+  const [selectedNetwork, setSelectedNetwork] = useState(chain.name === "Main" ? "Solana" : chain.name);
+  const networks = chain.name === "Main" ? chains : chains.filter((item) => item.name === chain.name);
+  const available = registryForChain(registry, selectedNetwork).slice(0, 3000);
   return (
     <section className="page-card">
       <h2>Add Token</h2>
-      <p>{chain.name === "Main" ? "Add any supported token from any connected chain." : `Add ${chain.name} tokens only.`}</p>
+      <p>{chain.name === "Main" ? "Step 1 pick a chain, Step 2 pick the blockchain/network, Step 3 pick a token or import a contract." : `This ${chain.name} page only adds ${chain.name} assets.`}</p>
       <div className="form-grid">
         <button className="primary" onClick={loadLocalRegistry}><Plus size={18} /> Load local top 3000</button>
-        <select value={customToken.network} onChange={(event) => setCustomToken({ ...customToken, network: event.target.value })}>
-          {chains.map((item) => <option key={item.name}>{item.name}</option>)}
+        <select value={chain.name} disabled>
+          <option>{chain.name}</option>
+        </select>
+        <select value={selectedNetwork} onChange={(event) => { setSelectedNetwork(event.target.value); setCustomToken({ ...customToken, network: event.target.value }); }}>
+          {networks.map((item) => <option key={item.name}>{item.name}</option>)}
         </select>
         <select value={selected} onChange={(event) => setSelected(event.target.value)}>
-          <option value="">Choose from local registry</option>
+          <option value="">Choose token/coin from {selectedNetwork}</option>
           {available.map((token) => <option key={`${token.id}-${token.symbol}`} value={token.id}>{token.symbol} - {token.name} - {(token.chains ?? []).join(", ")}</option>)}
         </select>
         <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder="Contract, mint, or asset id if not listed" />
@@ -753,6 +977,17 @@ function evmChainId(chain) {
     Fantom: 250
   };
   return ids[chain.name];
+}
+
+async function rpcCall(rpc, method, params) {
+  const response = await fetch(rpc, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params })
+  });
+  const payload = await response.json();
+  if (payload.error) throw new Error(payload.error.message ?? `${method} failed`);
+  return payload.result;
 }
 
 const rootElement = document.getElementById("root");
