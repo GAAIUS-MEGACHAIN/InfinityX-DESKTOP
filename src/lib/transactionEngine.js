@@ -3,6 +3,43 @@ import { getSolanaWalletState, getSplTokenBalance, IFX_MINT, sendSol, sendSplTok
 
 const SUPPORTED_UTXO_CHAINS = new Set(["Bitcoin", "Litecoin", "Dogecoin", "Dash"]);
 const SUPPORTED_COSMOS_CHAINS = new Set(["Cosmos Hub", "Osmosis", "Celestia", "Stargaze", "Juno", "Akash", "Kujira", "Secret Network", "Stride", "Evmos", "Coreum"]);
+const SUPPORTED_TRON_CHAINS = new Set(["Tron"]);
+const SUPPORTED_XRP_CHAINS = new Set(["XRP Ledger"]);
+const CHAIN_ALIASES = {
+  binancecoin: "bnbchain",
+  core: "coreum",
+  cronozkevm: "cronoszkevm",
+  cronoszkevm: "cronoszkevm",
+  eos: "eosevm",
+  eosevm: "eosevm",
+  ethereumclassic: "ethereumclassic",
+  etherlink: "etherlinkmainnet",
+  evmos: "evmos",
+  flarenetwork: "flare",
+  harmonyshard0: "harmony",
+  hyperliquid: "hyperevm",
+  hyperevm: "hyperevm",
+  klaytoken: "kaia",
+  kcc: "kccmainnet",
+  kccmainnet: "kccmainnet",
+  kucoincommunitychain: "kccmainnet",
+  megaeth: "megaethmainnet",
+  metall2: "metall2",
+  monad: "monad",
+  tron: "tron",
+  tronnetwork: "tron",
+  sei2: "seievm",
+  seiv2: "seievm",
+  shido: "shidonetwork",
+  soneium: "soneium",
+  wemixnetwork: "wemix",
+  xdcnetwork: "xdcnetwork",
+  xrp: "xrpledger",
+  xrpl: "xrpledger",
+  xrpledger: "xrpledger",
+  xlayer: "xlayermainnet",
+  xdai: "gnosis"
+};
 
 export function buildNativeAsset(chain) {
   return {
@@ -23,9 +60,14 @@ export function assetKey(asset) {
 
 export function getAssetListForChain(registry, chain) {
   const native = buildNativeAsset(chain);
+  const normalizedChain = canonicalChain(chain.name);
   const source = chain.name === "Main"
     ? registry
-    : registry.filter((asset) => (asset.chains ?? []).includes(chain.name) || asset.network === chain.name);
+    : registry.filter((asset) =>
+      (asset.chains ?? []).some((item) => canonicalChain(item) === normalizedChain) ||
+      canonicalChain(asset.network) === normalizedChain ||
+      (asset.contracts ?? []).some((contract) => canonicalChain(contract.chain ?? contract.platform) === normalizedChain)
+    );
   const ifx = chain.name === "Solana"
     ? [{ id: "infinityx-ifx", symbol: "IFX", name: "InfinityX", network: "Solana", chains: ["Solana"], contracts: [{ chain: "Solana", address: IFX_MINT }], mint: IFX_MINT }]
     : [];
@@ -42,8 +84,8 @@ export function contractForChain(token, chainName) {
   if (!token) return "";
   if (String(token.symbol).toUpperCase() === "IFX" && chainName === "Solana") return IFX_MINT;
   if (token.mint && chainName === "Solana") return token.mint;
-  if (token.contract && (!token.network || token.network === chainName || token.network === "Multi-chain")) return token.contract;
-  return (token.contracts ?? []).find((contract) => contract.chain === chainName)?.address ?? "";
+  if (token.contract && (!token.network || canonicalChain(token.network) === canonicalChain(chainName) || token.network === "Multi-chain")) return token.contract;
+  return (token.contracts ?? []).find((contract) => canonicalChain(contract.chain ?? contract.platform) === canonicalChain(chainName))?.address ?? "";
 }
 
 export function isNativeAsset(token, chain) {
@@ -102,7 +144,7 @@ export function getAssetCapability({ chain, token }) {
     };
   }
   if ((chain.kind === "Cosmos" || chain.kind === "Cosmos/EVM") && SUPPORTED_COSMOS_CHAINS.has(chain.name)) {
-    const canUse = native;
+    const canUse = native || Boolean(contract);
     return {
       adapter: "cosmos",
       native,
@@ -112,8 +154,38 @@ export function getAssetCapability({ chain, token }) {
       canSend: canUse,
       canStake: false,
       reason: canUse
-        ? `Live ${chain.name} native receive, balance, and send are enabled through the Cosmos adapter.`
-        : `${chain.name} supports native Cosmos assets only in this adapter.`
+        ? `Live ${chain.name} bank-token receive, balance, and send are enabled through the Cosmos adapter.`
+        : `${token.symbol} has no ${chain.name} denom in the bundled registry.`
+    };
+  }
+  if (SUPPORTED_TRON_CHAINS.has(chain.name)) {
+    const canUse = native || Boolean(contract);
+    return {
+      adapter: "tron",
+      native,
+      contract,
+      canReceive: canUse,
+      canBalance: canUse,
+      canSend: canUse,
+      canStake: false,
+      reason: canUse
+        ? "Live TRON native/TRC-20 send, receive, and balance are enabled."
+        : `${token.symbol} has no TRON TRC-20 contract in the bundled registry. Import the TRC-20 contract to send it.`
+    };
+  }
+  if (SUPPORTED_XRP_CHAINS.has(chain.name)) {
+    const canUse = native || Boolean(contract);
+    return {
+      adapter: "xrpl",
+      native,
+      contract,
+      canReceive: canUse,
+      canBalance: canUse,
+      canSend: canUse,
+      canStake: false,
+      reason: canUse
+        ? "Live XRP Ledger native/issued-token send, receive, and balance are enabled."
+        : `${token.symbol} has no XRP Ledger issued-token id in the bundled registry. Import currency.issuer to send it.`
     };
   }
   return {
@@ -190,7 +262,13 @@ export async function getAssetReceiveState({ password, chain, token }) {
   }
   if (capability.adapter === "cosmos") {
     const { getCosmosWalletState } = await import("./cosmosWallet.js");
-    const state = await getCosmosWalletState({ password, chain });
+    const state = await getCosmosWalletState({
+      password,
+      chain,
+      denom: capability.native ? undefined : capability.contract,
+      decimals: token.decimals,
+      symbol: capability.native ? undefined : token.symbol
+    });
     return {
       adapter: capability.adapter,
       address: state.address,
@@ -198,6 +276,63 @@ export async function getAssetReceiveState({ password, chain, token }) {
       symbol: state.symbol,
       contract: state.denom,
       status: `Live ${chain.name} Cosmos balance loaded.`
+    };
+  }
+  if (capability.adapter === "tron") {
+    const { getTronWalletState, getTrc20TokenBalance } = await import("./tronWallet.js");
+    if (capability.native) {
+      const state = await getTronWalletState({ password, chain });
+      return {
+        adapter: capability.adapter,
+        address: state.address,
+        balance: state.balance,
+        symbol: state.symbol,
+        contract: "",
+        status: "Live TRON native balance loaded."
+      };
+    }
+    const state = await getTrc20TokenBalance({
+      password,
+      chain,
+      tokenAddress: capability.contract,
+      decimals: token.decimals,
+      symbol: token.symbol
+    });
+    return {
+      adapter: capability.adapter,
+      address: state.address,
+      balance: state.uiAmount,
+      symbol: state.symbol,
+      contract: capability.contract,
+      status: "Live TRC-20 token balance loaded."
+    };
+  }
+  if (capability.adapter === "xrpl") {
+    const { getXrpWalletState, getXrplIssuedTokenBalance } = await import("./xrpWallet.js");
+    if (capability.native) {
+      const state = await getXrpWalletState({ password, chain });
+      return {
+        adapter: capability.adapter,
+        address: state.address,
+        balance: state.balance,
+        symbol: state.symbol,
+        contract: "",
+        status: "Live XRP Ledger native balance loaded."
+      };
+    }
+    const state = await getXrplIssuedTokenBalance({
+      password,
+      chain,
+      tokenId: capability.contract,
+      symbol: token.symbol
+    });
+    return {
+      adapter: capability.adapter,
+      address: state.address,
+      balance: state.balance,
+      symbol: state.symbol,
+      contract: capability.contract,
+      status: "Live XRP Ledger issued-token balance loaded."
     };
   }
   throw new Error(capability.reason);
@@ -220,6 +355,14 @@ export async function getReceiveAddressOnly({ password, chain }) {
     const { getCosmosWalletState } = await import("./cosmosWallet.js");
     const state = await getCosmosWalletState({ password, chain });
     return state.address;
+  }
+  if (SUPPORTED_TRON_CHAINS.has(chain.name)) {
+    const { deriveTronAddress } = await import("./tronWallet.js");
+    return deriveTronAddress({ password });
+  }
+  if (SUPPORTED_XRP_CHAINS.has(chain.name)) {
+    const { deriveXrpAddress } = await import("./xrpWallet.js");
+    return deriveXrpAddress({ password });
   }
   throw new Error(`${chain.name} does not have a receive-address adapter yet.`);
 }
@@ -246,8 +389,39 @@ export async function sendUniversalAsset({ password, chain, token, recipient, am
   }
   if (capability.adapter === "cosmos") {
     const { sendCosmosNative } = await import("./cosmosWallet.js");
-    const result = await sendCosmosNative({ password, chain, to: recipient, amount });
+    const result = await sendCosmosNative({
+      password,
+      chain,
+      to: recipient,
+      amount,
+      denom: capability.native ? undefined : capability.contract,
+      decimals: token.decimals,
+      symbol: capability.native ? undefined : token.symbol
+    });
+    return { ...result, network: chain.name, adapter: capability.adapter };
+  }
+  if (capability.adapter === "tron") {
+    const { sendTronNative, sendTrc20Token } = await import("./tronWallet.js");
+    const result = capability.native
+      ? await sendTronNative({ password, chain, to: recipient, amount })
+      : await sendTrc20Token({ password, chain, tokenAddress: capability.contract, to: recipient, amount, decimals: token.decimals });
+    return { ...result, network: chain.name, adapter: capability.adapter };
+  }
+  if (capability.adapter === "xrpl") {
+    const { sendXrpNative, sendXrplIssuedToken } = await import("./xrpWallet.js");
+    const result = capability.native
+      ? await sendXrpNative({ password, chain, to: recipient, amount })
+      : await sendXrplIssuedToken({ password, chain, tokenId: capability.contract, to: recipient, amount });
     return { ...result, network: chain.name, adapter: capability.adapter };
   }
   throw new Error(capability.reason);
+}
+
+function normalizeChain(value) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function canonicalChain(value) {
+  const normalized = normalizeChain(value);
+  return CHAIN_ALIASES[normalized] ?? normalized;
 }

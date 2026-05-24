@@ -75,5 +75,9 @@
     "react-dom": "^19.2.6",
     "viem": "^2.50.4",
     "vite": "^8.0.14"
+  },
+  "dependencies": {
+    "tronweb": "^6.3.0",
+    "xrpl": "^4.6.0"
   }
 }

@@ -55,6 +55,7 @@ const topAssets = [
   { symbol: "BTC", name: "Bitcoin", network: "Bitcoin", action: "Track" },
   { symbol: "ETH", name: "Ethereum", network: "Ethereum", action: "Add" },
   { symbol: "SOL", name: "Solana", network: "Solana", action: "Add" },
+  { symbol: "TRX", name: "TRON", network: "Tron", action: "Add" },
   { symbol: "BNB", name: "BNB", network: "BNB Chain", action: "Add" },
   { symbol: "XRP", name: "XRP", network: "XRP Ledger", action: "Add" },
   { symbol: "USDC", name: "USD Coin", network: "Multi-chain", action: "Add" },
@@ -97,6 +98,41 @@ const services = [
   { name: "QR Payments", fee: "0.10%", ifx: "0.05%", icon: QrCode },
   { name: "Portfolio", fee: "Free", ifx: "Free", icon: Wallet }
 ];
+
+const CHAIN_ALIASES = {
+  binancecoin: "bnbchain",
+  core: "coreum",
+  cronozkevm: "cronoszkevm",
+  eos: "eosevm",
+  eosevm: "eosevm",
+  ethereumclassic: "ethereumclassic",
+  etherlink: "etherlinkmainnet",
+  evmos: "evmos",
+  flarenetwork: "flare",
+  harmonyshard0: "harmony",
+  hyperliquid: "hyperevm",
+  hyperevm: "hyperevm",
+  klaytoken: "kaia",
+  kcc: "kccmainnet",
+  kccmainnet: "kccmainnet",
+  kucoincommunitychain: "kccmainnet",
+  megaeth: "megaethmainnet",
+  metall2: "metall2",
+  monad: "monad",
+  tron: "tron",
+  tronnetwork: "tron",
+  sei2: "seievm",
+  seiv2: "seievm",
+  shido: "shidonetwork",
+  soneium: "soneium",
+  wemixnetwork: "wemix",
+  xdcnetwork: "xdcnetwork",
+  xrp: "xrpledger",
+  xrpl: "xrpledger",
+  xrpledger: "xrpledger",
+  xlayer: "xlayermainnet",
+  xdai: "gnosis"
+};
 
 const PROTECTED_PAGES = new Set([
   "accounts",
@@ -250,9 +286,7 @@ function App() {
         <footer className="bottom-nav">
           <button className={page === "wallet" ? "active" : ""} onClick={() => setPage("wallet")}><Wallet size={20} /><span>Wallet</span></button>
           <button className={page === "dex" ? "active" : ""} onClick={() => navigate("dex")}><ArrowDownUp size={20} /><span>DEX</span></button>
-          <button className={page === "dapps" ? "active" : ""} onClick={() => navigate("dapps")}><Globe2 size={20} /><span>dApps</span></button>
-          <button className={page === "nfts" ? "active" : ""} onClick={() => navigate("nfts")}><Compass size={20} /><span>NFTs</span></button>
-          <button className={page === "staking" ? "active" : ""} onClick={() => navigate("staking")}><BadgeDollarSign size={20} /><span>Stake</span></button>
+          <button className={page === "buy" ? "active" : ""} onClick={() => navigate("buy")}><ShoppingCart size={20} /><span>Buy</span></button>
           <button className={page === "services" ? "active" : ""} onClick={() => navigate("services")}><BadgeDollarSign size={20} /><span>Services</span></button>
         </footer>
       </section>
@@ -416,9 +450,8 @@ function WalletPage({ chain, filteredCoins, query, setQuery, loadCoins, setPage,
           <button aria-label="Scan QR"><QrCode size={19} /></button>
         </div>
         <div className="balance">
-          <span>Live Portfolio Balance</span>
-          <h1>{sessionUnlocked ? "--" : "Welcome"}</h1>
-          <p>{sessionUnlocked ? `${liveChain.name} account ready for live balances and transactions` : `${vaultAvailable ? "Log in" : "Register"} when you create accounts or use services`}</p>
+          <span>Balance</span>
+          <h1>--</h1>
         </div>
         <div className="actions">
           <button onClick={() => setPage("send")}><Send size={20} /><span>Send</span></button>
@@ -619,6 +652,7 @@ function ServicesPage({ setPage }) {
     { name: "Convert", page: "convert", icon: ArrowDownUp, detail: "Jupiter and LI.FI routes" },
     { name: "Bridge", page: "bridge", icon: Layers3 },
     { name: "Markets", page: "news", icon: CircleDollarSign, detail: "Top assets and pairs" },
+    { name: "Staking", page: "staking", icon: BadgeDollarSign, detail: "Live SOL staking" },
     { name: "dApps", page: "dapps", icon: Globe2 },
     { name: "NFTs", page: "nfts", icon: Compass },
     { name: "Metaverse", page: "metaverse", icon: Layers3, detail: "World/API registry" },
@@ -1114,8 +1148,8 @@ function SendPage({ chain, registry }) {
           <option value="custom">Custom token contract/mint</option>
         </select>
         {effectiveSelectedAssetKey === "custom" && <input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value.toUpperCase() })} placeholder="Token symbol" />}
-        {effectiveSelectedAssetKey === "custom" && <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder={liveChain.kind === "SVM" ? "SPL mint address" : "ERC-20 contract"} />}
-        {effectiveSelectedAssetKey === "custom" && liveChain.kind === "EVM" && <input value={customToken.decimals} onChange={(event) => setCustomToken({ ...customToken, decimals: event.target.value })} placeholder="Decimals, blank = read from contract" />}
+        {effectiveSelectedAssetKey === "custom" && <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder={tokenContractPlaceholder(liveChain)} />}
+        {effectiveSelectedAssetKey === "custom" && (liveChain.kind === "EVM" || liveChain.name === "Tron") && <input value={customToken.decimals} onChange={(event) => setCustomToken({ ...customToken, decimals: event.target.value })} placeholder="Decimals, blank = read from contract" />}
         <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient address" />
         <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
         <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
@@ -1184,8 +1218,8 @@ function ReceivePage({ chain, registry }) {
           <option value="custom">Custom token contract/mint</option>
         </select>
         {effectiveSelectedAssetKey === "custom" && <input value={customToken.symbol} onChange={(event) => setCustomToken({ ...customToken, symbol: event.target.value.toUpperCase() })} placeholder="Token symbol" />}
-        {effectiveSelectedAssetKey === "custom" && <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder={liveChain.kind === "SVM" ? "SPL mint address" : "ERC-20 contract"} />}
-        {effectiveSelectedAssetKey === "custom" && liveChain.kind === "EVM" && <input value={customToken.decimals} onChange={(event) => setCustomToken({ ...customToken, decimals: event.target.value })} placeholder="Decimals, blank = read from contract" />}
+        {effectiveSelectedAssetKey === "custom" && <input value={customToken.contract} onChange={(event) => setCustomToken({ ...customToken, contract: event.target.value })} placeholder={tokenContractPlaceholder(liveChain)} />}
+        {effectiveSelectedAssetKey === "custom" && (liveChain.kind === "EVM" || liveChain.name === "Tron") && <input value={customToken.decimals} onChange={(event) => setCustomToken({ ...customToken, decimals: event.target.value })} placeholder="Decimals, blank = read from contract" />}
         <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Vault password" />
         <button className="primary" onClick={unlockAddresses}><QrCode size={18} /> Show Receive Address</button>
       </div>
@@ -1355,18 +1389,21 @@ function NewsPage({ coins, loadCoins, status }) {
 }
 
 function chainByName(name) {
-  return chains.find((item) => item.name === name) ?? { name, symbol: "", kind: "Adapter", rpc: "indexer-required", explorer: "", native: "" };
+  const normalized = canonicalChainName(name);
+  return chains.find((item) => canonicalChainName(item.name) === normalized) ?? { name, symbol: "", kind: "Adapter", rpc: "indexer-required", explorer: "", native: "" };
 }
 
 function getTokenNetworks(token, currentChain) {
   if (!token) return [currentChain.name];
   const networks = [];
   if (String(token.symbol).toUpperCase() === "IFX") networks.push("Solana");
+  networks.push(...nativeChainsForSymbol(token.symbol).map((item) => item.name));
   if (currentChain.name !== "Main") networks.push(currentChain.name);
   if (Array.isArray(token.chains)) networks.push(...token.chains);
+  if (Array.isArray(token.contracts)) networks.push(...token.contracts.map((contract) => chainByName(contract.chain ?? contract.platform).name));
   if (token.network && !["Multi-chain", "Auto-detect"].includes(token.network)) networks.push(token.network);
   if (isNativeAsset(token, currentChain)) networks.push(currentChain.name);
-  const usable = networks.filter(Boolean);
+  const usable = networks.filter(Boolean).map((item) => chainByName(item).name);
   return [...new Set(usable.length ? usable : [currentChain.name])];
 }
 
@@ -1393,7 +1430,7 @@ function shortAddress(address) {
 
 async function syncBackendProfile(mode, address) {
   try {
-    await fetch("http://127.0.0.1:8787/auth/session", {
+    await fetch(`${backendBaseUrl()}/auth/session`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -1419,7 +1456,7 @@ async function fetchJsonWithBackend(staticPath, backendPath) {
   }
   if (backendPath) {
     try {
-      const response = await fetch(`http://127.0.0.1:8787${backendPath}`);
+      const response = await fetch(`${backendBaseUrl()}${backendPath}`);
       if (response.ok) return response.json();
       throw new Error(`${backendPath} returned ${response.status}`);
     } catch (backendError) {
@@ -1427,6 +1464,15 @@ async function fetchJsonWithBackend(staticPath, backendPath) {
     }
   }
   throw staticError ?? new Error(`${staticPath} unavailable`);
+}
+
+function backendBaseUrl() {
+  const query = new URLSearchParams(globalThis.location?.search ?? "").get("backend");
+  if (query?.startsWith("http://127.0.0.1:")) {
+    globalThis.localStorage?.setItem("infinityx_backend_url", query);
+    return query.replace(/\/$/, "");
+  }
+  return (globalThis.localStorage?.getItem("infinityx_backend_url") || "http://127.0.0.1:8787").replace(/\/$/, "");
 }
 
 function formatBalance(value) {
@@ -1446,7 +1492,40 @@ function formatTokenRowMeta(token) {
 function registryForChain(registry, chainName) {
   if (!registry.length) return [];
   if (chainName === "Main") return registry;
-  return registry.filter((asset) => (asset.chains ?? []).includes(chainName));
+  const normalized = canonicalChainName(chainName);
+  const chain = chainByName(chainName);
+  return registry.filter((asset) =>
+    nativeChainsForSymbol(asset.symbol).some((item) => item.name === chain.name) ||
+    (asset.chains ?? []).some((item) => canonicalChainName(item) === normalized) ||
+    (asset.contracts ?? []).some((contract) => canonicalChainName(contract.chain ?? contract.platform) === normalized)
+  );
+}
+
+function nativeChainsForSymbol(symbol) {
+  const normalized = String(symbol ?? "").toUpperCase();
+  if (!normalized) return [];
+  return chains.filter((item) =>
+    item.name !== "Main" &&
+    [item.native, item.symbol].some((value) => String(value ?? "").toUpperCase() === normalized)
+  );
+}
+
+function tokenContractPlaceholder(chain) {
+  if (chain.kind === "SVM") return "SPL mint address";
+  if (chain.name === "Tron") return "TRC-20 contract";
+  if (chain.name === "XRP Ledger") return "XRPL currency.issuer";
+  if (chain.kind === "EVM") return "ERC-20 contract";
+  if (chain.kind === "Cosmos" || chain.kind === "Cosmos/EVM") return "Bank or IBC denom";
+  return "Contract, mint, or asset id";
+}
+
+function normalizeChainName(value) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function canonicalChainName(value) {
+  const normalized = normalizeChainName(value);
+  return CHAIN_ALIASES[normalized] ?? normalized;
 }
 
 function evmChainId(chain) {

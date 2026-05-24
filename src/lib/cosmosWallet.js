@@ -34,29 +34,34 @@ export function isSupportedCosmosChain(chain) {
   return Boolean(COSMOS_CHAINS[chain?.name]);
 }
 
-export async function getCosmosWalletState({ password, chain, accountIndex = 0 }) {
+export async function getCosmosWalletState({ password, chain, accountIndex = 0, denom, decimals, symbol } = {}) {
   const config = cosmosConfig(chain);
+  const assetDenom = denom || config.denom;
+  const assetDecimals = hasExplicitDecimals(decimals) ? Number(decimals) : config.decimals;
+  const assetSymbol = symbol || config.symbol;
   const wallet = await unlockCosmosWallet({ password, chain, accountIndex });
   const [account] = await wallet.getAccounts();
   const { result: balance } = await withCosmosRpc(chain, async (rpc) => {
     const client = await StargateClient.connect(rpc);
     try {
-      return await client.getBalance(account.address, config.denom);
+      return await client.getBalance(account.address, assetDenom);
     } finally {
       client.disconnect();
     }
   });
   return {
     address: account.address,
-    balance: formatUnits(balance.amount, config.decimals),
+    balance: formatUnits(balance.amount, assetDecimals),
     raw: balance.amount,
-    symbol: config.symbol,
-    denom: config.denom
+    symbol: assetSymbol,
+    denom: assetDenom
   };
 }
 
-export async function sendCosmosNative({ password, chain, to, amount, accountIndex = 0 }) {
+export async function sendCosmosNative({ password, chain, to, amount, accountIndex = 0, denom, decimals, symbol } = {}) {
   const config = cosmosConfig(chain);
+  const assetDenom = denom || config.denom;
+  const assetDecimals = hasExplicitDecimals(decimals) ? Number(decimals) : config.decimals;
   if (!to?.startsWith(config.prefix)) throw new Error(`Recipient must be a ${chain.name} address.`);
   const wallet = await unlockCosmosWallet({ password, chain, accountIndex });
   const [account] = await wallet.getAccounts();
@@ -68,9 +73,9 @@ export async function sendCosmosNative({ password, chain, to, amount, accountInd
       return await client.sendTokens(
         account.address,
         to.trim(),
-        [{ denom: config.denom, amount: parseUnits(amount, config.decimals) }],
+        [{ denom: assetDenom, amount: parseUnits(amount, assetDecimals) }],
         "auto",
-        "InfinityX"
+        `InfinityX ${symbol || config.symbol}`
       );
     } finally {
       client.disconnect();
@@ -78,6 +83,11 @@ export async function sendCosmosNative({ password, chain, to, amount, accountInd
   });
   if (result.code !== 0) throw new Error(result.rawLog || `${chain.name} transaction failed.`);
   return { hash: result.transactionHash, explorer: explorerTxUrl(chain, result.transactionHash) };
+}
+
+function hasExplicitDecimals(decimals) {
+  if (decimals === undefined || decimals === null || String(decimals).trim() === "") return false;
+  return Number.isFinite(Number(decimals));
 }
 
 async function unlockCosmosWallet({ password, chain, accountIndex }) {
